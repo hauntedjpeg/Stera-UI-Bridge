@@ -9,7 +9,19 @@ export function ExportView({ output }: Props) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(output.css);
+    try {
+      await navigator.clipboard.writeText(output.css);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = output.css;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }, [output.css]);
