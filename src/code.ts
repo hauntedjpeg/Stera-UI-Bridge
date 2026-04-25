@@ -1,4 +1,8 @@
 import type {
+  RawVariable,
+  RawVariableCollection,
+  RawVariableValue,
+  RawVariablesPayload,
   SerializedCollection,
   SerializedValue,
   SerializedVariable,
@@ -39,6 +43,83 @@ function serializeValue(raw: VariableValue): SerializedValue {
     };
   }
   return { kind: "string", value: String(raw) };
+}
+
+function rawValue(raw: VariableValue): RawVariableValue {
+  if (typeof raw === "number") return raw;
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "boolean") return raw;
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "type" in raw &&
+    (raw as VariableAlias).type === "VARIABLE_ALIAS"
+  ) {
+    return { type: "VARIABLE_ALIAS", id: (raw as VariableAlias).id };
+  }
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "r" in raw &&
+    "g" in raw &&
+    "b" in raw
+  ) {
+    const c = raw as RGB | RGBA;
+    return {
+      r: c.r,
+      g: c.g,
+      b: c.b,
+      a: "a" in c ? c.a : 1,
+    };
+  }
+  return String(raw);
+}
+
+async function extractRawVariables(): Promise<RawVariablesPayload> {
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+  const variables: Record<string, RawVariable> = {};
+  const variableCollections: Record<string, RawVariableCollection> = {};
+
+  for (const col of collections) {
+    variableCollections[col.id] = {
+      id: col.id,
+      name: col.name,
+      key: col.key,
+      modes: col.modes.map((m) => ({ modeId: m.modeId, name: m.name })),
+      defaultModeId: col.defaultModeId,
+      remote: col.remote,
+      hiddenFromPublishing: col.hiddenFromPublishing,
+      variableIds: [...col.variableIds],
+    };
+
+    for (const varId of col.variableIds) {
+      const v = await figma.variables.getVariableByIdAsync(varId);
+      if (!v) continue;
+      const valuesByMode: Record<string, RawVariableValue> = {};
+      for (const modeId of Object.keys(v.valuesByMode)) {
+        valuesByMode[modeId] = rawValue(v.valuesByMode[modeId]);
+      }
+      variables[v.id] = {
+        id: v.id,
+        name: v.name,
+        key: v.key,
+        variableCollectionId: v.variableCollectionId,
+        resolvedType: v.resolvedType,
+        valuesByMode,
+        remote: v.remote,
+        description: v.description,
+        hiddenFromPublishing: v.hiddenFromPublishing,
+        scopes: [...v.scopes],
+        codeSyntax: { ...v.codeSyntax },
+      };
+    }
+  }
+
+  return {
+    status: 200,
+    error: false,
+    meta: { variables, variableCollections },
+  };
 }
 
 async function extractDoc(): Promise<SerializedCollection[]> {
@@ -109,10 +190,15 @@ figma.showUI(__html__, { width: 440, height: 620, themeColors: true });
 figma.ui.onmessage = async (msg: UiToSandbox) => {
   try {
     if (msg.type === "load-variables") {
-      const [collections, prefs] = await Promise.all([extractDoc(), loadPrefs()]);
+      const [collections, raw, prefs] = await Promise.all([
+        extractDoc(),
+        extractRawVariables(),
+        loadPrefs(),
+      ]);
       post({
         type: "variables-loaded",
         doc: { collections },
+        raw,
         prefs,
         fileName: figma.root.name,
       });

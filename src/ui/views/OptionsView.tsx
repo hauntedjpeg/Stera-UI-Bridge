@@ -40,7 +40,7 @@ export function OptionsView({
           className="w-full rounded border border-[var(--color-border)] bg-transparent px-2 py-1.5"
         />
         <div className="mt-1 text-[10px] text-[var(--color-text-secondary)]">
-          Optional. Example: <code>stera</code> → <code>--stera-bg-surface</code>.
+          Optional. Example: <code>stera</code> → <code>--stera-surface</code>.
         </div>
       </section>
 

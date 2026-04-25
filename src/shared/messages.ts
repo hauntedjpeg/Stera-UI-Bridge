@@ -23,6 +23,49 @@ export type VariableDoc = {
   collections: SerializedCollection[];
 };
 
+export type RawColorValue = { r: number; g: number; b: number; a: number };
+export type RawAliasValue = { type: "VARIABLE_ALIAS"; id: string };
+export type RawVariableValue =
+  | RawColorValue
+  | RawAliasValue
+  | number
+  | string
+  | boolean;
+
+export type RawVariable = {
+  id: string;
+  name: string;
+  key: string;
+  variableCollectionId: string;
+  resolvedType: string;
+  valuesByMode: Record<string, RawVariableValue>;
+  remote: boolean;
+  description: string;
+  hiddenFromPublishing: boolean;
+  scopes: string[];
+  codeSyntax: Record<string, string>;
+};
+
+export type RawVariableCollection = {
+  id: string;
+  name: string;
+  key: string;
+  modes: Array<{ modeId: string; name: string }>;
+  defaultModeId: string;
+  remote: boolean;
+  hiddenFromPublishing: boolean;
+  variableIds: string[];
+};
+
+export type RawVariablesPayload = {
+  status: number;
+  error: boolean;
+  meta: {
+    variables: Record<string, RawVariable>;
+    variableCollections: Record<string, RawVariableCollection>;
+  };
+};
+
 export type FontStrategy = "next-font" | "fontsource-variable" | "raw";
 export type NextFontConvention = "family-named" | "match-init";
 
@@ -44,7 +87,13 @@ export const DEFAULT_PREFS: StoredPrefs = {
 };
 
 export type SandboxToUi =
-  | { type: "variables-loaded"; doc: VariableDoc; prefs: StoredPrefs; fileName: string }
+  | {
+      type: "variables-loaded";
+      doc: VariableDoc;
+      raw: RawVariablesPayload;
+      prefs: StoredPrefs;
+      fileName: string;
+    }
   | { type: "prefs-saved" }
   | { type: "error"; message: string };
 

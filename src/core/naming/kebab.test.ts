@@ -3,11 +3,11 @@ import { toKebabName, kebab } from "./kebab.js";
 
 describe("toKebabName", () => {
   it("converts slash-delimited paths", () => {
-    expect(toKebabName("bg/surface/hover")).toBe("--bg-surface-hover");
+    expect(toKebabName("surface/brand/hover")).toBe("--surface-brand-hover");
   });
 
   it("lowercases", () => {
-    expect(toKebabName("BG/Surface")).toBe("--bg-surface");
+    expect(toKebabName("Surface/Brand")).toBe("--surface-brand");
   });
 
   it("handles spaces and collapses separators", () => {
@@ -15,11 +15,11 @@ describe("toKebabName", () => {
   });
 
   it("applies optional prefix", () => {
-    expect(toKebabName("bg/surface", "stera")).toBe("--stera-bg-surface");
+    expect(toKebabName("surface/brand", "stera")).toBe("--stera-surface-brand");
   });
 
   it("strips trailing/leading dashes", () => {
-    expect(toKebabName("-bg-surface-")).toBe("--bg-surface");
+    expect(toKebabName("-surface-brand-")).toBe("--surface-brand");
   });
 });
 

@@ -144,7 +144,7 @@ export const STERA_UTILITIES = `@utility st-body-sm {
     @apply border-border;
   }
   body {
-    @apply bg-bg-surface text-text antialiased;
+    @apply bg-surface text-text antialiased;
     font-feature-settings: "ss03";
   }
 }`;

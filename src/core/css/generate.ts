@@ -77,6 +77,9 @@ function normalizeName(
       path = segments.slice(1).join("/");
     }
   }
+  if (collectionName === "Core – Color" && !path.includes("/")) {
+    path = `surface/${path}`;
+  }
   const head = toKebabName(path || rawPath, undefined).replace(/^--/, "");
   const rewritten = rewriteTypographyHead(head, collectionName);
   return prefix ? `--${prefix}-${rewritten}` : `--${rewritten}`;
@@ -194,7 +197,7 @@ function primitiveDecls(
 }
 
 function semanticGroupKey(head: string): number | null {
-  if (head === "bg" || head.startsWith("bg-")) return 0;
+  if (head === "surface" || head.startsWith("surface-")) return 0;
   if (head === "text" || head.startsWith("text-")) return 1;
   if (head === "border" || head.startsWith("border-")) return 2;
   if (head === "ring" || head.startsWith("ring-")) return 3;

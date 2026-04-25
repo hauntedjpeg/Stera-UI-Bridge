@@ -11,8 +11,8 @@ const colorCol: SerializedCollection = {
   ],
   variables: [
     {
-      id: "v-bg-surface",
-      name: "bg/surface",
+      id: "v-surface",
+      name: "-",
       type: "COLOR",
       valuesByMode: {
         light: { kind: "color", r: 1, g: 1, b: 1, a: 1 },
@@ -20,8 +20,8 @@ const colorCol: SerializedCollection = {
       },
     },
     {
-      id: "v-brand-500",
-      name: "brand/500",
+      id: "v-surface-brand",
+      name: "Surface/Brand/-",
       type: "COLOR",
       valuesByMode: {
         light: { kind: "color", r: 0.2, g: 0.3, b: 0.9, a: 1 },
@@ -120,7 +120,7 @@ describe("generateGlobalsCss", () => {
     expect(css).toContain("@theme inline");
     expect(css).toContain(":root {");
     expect(css).toContain("--font-sans: var(--font-geist-sans);");
-    expect(css).toContain("--bg-surface: oklch(");
+    expect(css).toContain("--surface: oklch(");
   });
 
   it("prefixes typography tokens with font-size / font-weight / line-height", () => {
@@ -151,7 +151,7 @@ describe("generateGlobalsCss", () => {
       fontAssignments: [{ role: "--font-sans", family: "Geist" }],
     });
     expect(css).toMatch(/@layer base \{\s*:root \{/);
-    expect(css).toMatch(/\.dark \{[^}]*--bg-surface: oklch\(/);
+    expect(css).toMatch(/\.dark \{[^}]*--surface: oklch\(/);
   });
 
   it("emits letter-spacing in rem (not px) by default", () => {

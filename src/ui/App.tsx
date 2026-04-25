@@ -4,6 +4,7 @@ import {
   postToSandbox,
   type FontStrategy,
   type NextFontConvention,
+  type RawVariablesPayload,
   type SandboxToUi,
   type StoredPrefs,
   type UnitChoice,
@@ -56,6 +57,7 @@ function deriveFontAssignments(doc: VariableDoc | null): FontAssignment[] {
 
 export function App() {
   const [doc, setDoc] = useState<VariableDoc | null>(null);
+  const [raw, setRaw] = useState<RawVariablesPayload | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [prefs, setPrefs] = useState<StoredPrefs>(DEFAULT_PREFS);
   const [step, setStep] = useState<Step>("preview");
@@ -65,6 +67,7 @@ export function App() {
   const onMessage = useCallback((msg: SandboxToUi) => {
     if (msg.type === "variables-loaded") {
       setDoc(msg.doc);
+      setRaw(msg.raw);
       setFileName(msg.fileName);
       setPrefs(msg.prefs);
       setLoading(false);
@@ -188,7 +191,9 @@ export function App() {
             onPrefixChange={setPrefix}
           />
         )}
-        {step === "export" && output && <ExportView output={output} />}
+        {step === "export" && output && (
+          <ExportView output={output} raw={raw} fileName={fileName} />
+        )}
       </main>
     </div>
   );
