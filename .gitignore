@@ -7,3 +7,5 @@ figma.log
 coverage/
 .env
 .env.local
+variables.json
+docs/migration-bg-to-surface.md
