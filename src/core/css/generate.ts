@@ -365,7 +365,6 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
   const fontResult = emitFontDeclarations(fontAssignments, strategy, nextConvention);
   warnings.push(...fontResult.warnings);
 
-  const typoHeads = new Set(typoDecls.map((d) => d.head));
   const fontDecls: Decl[] = fontResult.declarations
     .map((line) => {
       const match = line.match(/^\s*(--[a-z0-9-]+):\s*(.+?);?\s*$/);
@@ -374,7 +373,10 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
       const value = match[2];
       return { name, head: headFromName(name, prefix), value };
     })
-    .filter((d): d is Decl => d !== null && !typoHeads.has(d.head));
+    .filter((d): d is Decl => d !== null);
+
+  const fontHeads = new Set(fontDecls.map((d) => d.head));
+  const typoDeclsWithoutFonts = typoDecls.filter((d) => !fontHeads.has(d.head));
 
   const imports = ['@import "tailwindcss";', '@import "tw-animate-css";'];
   imports.push(...fontsourceImports(fontAssignments, strategy));
@@ -386,7 +388,7 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
     colorPrimitiveGroupKey(d.head),
   );
   const sortedTypoDecls = stableSortBy(
-    [...fontDecls, ...typoDecls],
+    [...fontDecls, ...typoDeclsWithoutFonts],
     (d) => primitiveGroupKey(d.head),
   );
   const sortedThemeDecls = stableSortBy(themeDecls, (d) => semanticGroupKey(d.head));

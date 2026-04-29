@@ -306,19 +306,67 @@ describe("generateGlobalsCss", () => {
     expect(css).toMatch(/--font-sans:\s*'Geist';/);
   });
 
-  it("fontAssignments fills only roles missing from Base • Typography", () => {
+  const baseTypographyPlain: SerializedCollection = {
+    ...baseTypography,
+    variables: baseTypography.variables.map((v) =>
+      v.id === "v-font-sans"
+        ? { ...v, valuesByMode: { default: { kind: "string", value: "Geist" } } }
+        : v,
+    ),
+  };
+
+  it("next-font strategy overrides raw Typography font roles", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
-      collections: [basePrimitives, themeSemantic, baseTypography],
+      strategy: "next-font",
+      collections: [basePrimitives, themeSemantic, baseTypographyPlain],
       fontAssignments: [
-        { role: "--font-sans", family: "Inter" },
-        { role: "--font-mono", family: "JetBrains Mono" },
+        { role: "--font-sans", family: "Geist" },
+        { role: "--font-heading", family: "Geist" },
       ],
     });
     const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
     const fontSansLines = rootBody.match(/^\s*--font-sans:[^\n]*$/gm) ?? [];
     expect(fontSansLines.length).toBe(1);
-    expect(fontSansLines[0]).toContain("'Geist'");
-    expect(rootBody).toMatch(/--font-mono:/);
+    expect(fontSansLines[0]).toContain("var(--font-geist-sans)");
+    expect(rootBody).not.toMatch(/--font-sans:\s*Geist;/);
+    expect(rootBody).toMatch(/--font-heading:\s*var\(--font-geist-sans\);/);
+  });
+
+  it("fontsource-variable strategy overrides raw Typography and emits the @import", () => {
+    const { css } = generateGlobalsCss({
+      ...baseOptions,
+      strategy: "fontsource-variable",
+      collections: [basePrimitives, themeSemantic, baseTypographyPlain],
+      fontAssignments: [{ role: "--font-sans", family: "Geist" }],
+    });
+    const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+    expect(rootBody).toMatch(/--font-sans:\s*'Geist Variable', sans-serif;/);
+    expect(rootBody).not.toMatch(/--font-sans:\s*Geist;/);
+    expect(css).toMatch(/@import "@fontsource-variable\/geist";/);
+  });
+
+  it("raw strategy emits the fallback stack instead of the bare Typography value", () => {
+    const { css } = generateGlobalsCss({
+      ...baseOptions,
+      strategy: "raw",
+      collections: [basePrimitives, themeSemantic, baseTypographyPlain],
+      fontAssignments: [{ role: "--font-sans", family: "Geist" }],
+    });
+    const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+    const fontSansLines = rootBody.match(/^\s*--font-sans:[^\n]*$/gm) ?? [];
+    expect(fontSansLines.length).toBe(1);
+    expect(fontSansLines[0]).toMatch(/Geist,\s*sans-serif/);
+  });
+
+  it("fontAssignments fills roles missing from Base • Typography", () => {
+    const { css } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography],
+      fontAssignments: [{ role: "--font-mono", family: "JetBrains Mono" }],
+    });
+    const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+    expect(rootBody).toMatch(/--font-sans:\s*'Geist';/);
+    expect(rootBody).toMatch(/--font-mono:\s*var\(--font-jetbrains-mono\);/);
   });
 });
