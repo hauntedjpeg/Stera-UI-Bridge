@@ -4,7 +4,7 @@ import type { SerializedCollection } from "../../shared/messages.js";
 
 const basePrimitives: SerializedCollection = {
   id: "col-base-color",
-  name: "Base • Color",
+  name: "Color",
   modes: [
     { id: "light", name: "Light" },
     { id: "dark", name: "Dark" },
@@ -42,7 +42,7 @@ const basePrimitives: SerializedCollection = {
 
 const themeSemantic: SerializedCollection = {
   id: "col-theme-color",
-  name: "Theme • Color",
+  name: "Theme",
   modes: [{ id: "value", name: "Value" }],
   variables: [
     {
@@ -74,7 +74,7 @@ const themeSemantic: SerializedCollection = {
 
 const baseTypography: SerializedCollection = {
   id: "col-base-typo",
-  name: "Base • Typography",
+  name: "Typography",
   modes: [{ id: "default", name: "Default" }],
   variables: [
     {
@@ -118,7 +118,7 @@ const baseTypography: SerializedCollection = {
 
 const referenceDimension: SerializedCollection = {
   id: "col-ref-dim",
-  name: "Reference • Dimension",
+  name: "Reference",
   modes: [{ id: "default", name: "Default" }],
   variables: [
     {
@@ -148,7 +148,7 @@ describe("generateGlobalsCss", () => {
     expect(css).toBe("");
   });
 
-  it("hard-fails when Base • Color has no dark mode", () => {
+  it("hard-fails when Color has no dark mode", () => {
     const noDark: SerializedCollection = {
       ...basePrimitives,
       modes: [{ id: "light", name: "Light" }],
@@ -164,12 +164,12 @@ describe("generateGlobalsCss", () => {
     expect(errors[0]).toMatch(/no dark mode/i);
   });
 
-  it("hard-fails when Base • Color is missing entirely", () => {
+  it("hard-fails when Color is missing entirely", () => {
     const { errors } = generateGlobalsCss({
       ...baseOptions,
       collections: [themeSemantic, baseTypography],
     });
-    expect(errors[0]).toMatch(/Base • Color/);
+    expect(errors[0]).toMatch(/"Color"/);
   });
 
   it("emits expected top-level structure", () => {
@@ -205,7 +205,7 @@ describe("generateGlobalsCss", () => {
     expect(css).not.toContain("--spacing-4");
   });
 
-  it("emits Base • Color light primitives in :root and dark overrides in .dark", () => {
+  it("emits Color light primitives in :root and dark overrides in .dark", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
       collections: [basePrimitives, themeSemantic, baseTypography],
@@ -222,7 +222,7 @@ describe("generateGlobalsCss", () => {
     expect(darkBody).toMatch(/--brand-9:\s*oklch\(/);
   });
 
-  it(".dark contains only Base • Color primitives, no semantic or typography vars", () => {
+  it(".dark contains only Color primitives, no semantic or typography vars", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
       collections: [basePrimitives, themeSemantic, baseTypography],
@@ -235,7 +235,7 @@ describe("generateGlobalsCss", () => {
     expect(darkBody).not.toMatch(/--font-weight-/);
   });
 
-  it("Theme • Color aliases resolve to var(--primitive) references", () => {
+  it("Theme aliases resolve to var(--primitive) references", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
       collections: [basePrimitives, themeSemantic, baseTypography],
@@ -244,7 +244,7 @@ describe("generateGlobalsCss", () => {
     expect(css).not.toMatch(/unresolved alias/);
   });
 
-  it("dynamically generates @theme inline from Theme • Color only", () => {
+  it("dynamically generates @theme inline from Theme only", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
       collections: [basePrimitives, themeSemantic, baseTypography],
@@ -298,7 +298,7 @@ describe("generateGlobalsCss", () => {
     expect(css).toMatch(/@utility st-body-sm \{[^}]*var\(--font-weight-regular\)/);
   });
 
-  it("Base • Typography font roles emit without fontAssignments", () => {
+  it("Typography font roles emit without fontAssignments", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
       collections: [basePrimitives, themeSemantic, baseTypography],
@@ -359,7 +359,7 @@ describe("generateGlobalsCss", () => {
     expect(fontSansLines[0]).toMatch(/Geist,\s*sans-serif/);
   });
 
-  it("fontAssignments fills roles missing from Base • Typography", () => {
+  it("fontAssignments fills roles missing from Typography", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
       collections: [basePrimitives, themeSemantic, baseTypography],

@@ -30,9 +30,9 @@ export type GenerateResult = {
   errors: string[];
 };
 
-const COLOR_PRIMITIVE_COLLECTION = "Base • Color";
-const SEMANTIC_COLOR_COLLECTION = "Theme • Color";
-const TYPOGRAPHY_COLLECTION = "Base • Typography";
+const COLOR_PRIMITIVE_COLLECTION = "Color";
+const SEMANTIC_COLOR_COLLECTION = "Theme";
+const TYPOGRAPHY_COLLECTION = "Typography";
 const INCLUDED_COLLECTIONS = new Set([
   COLOR_PRIMITIVE_COLLECTION,
   SEMANTIC_COLOR_COLLECTION,
@@ -278,7 +278,7 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
 
   if (collections.length === 0) {
     errors.push(
-      "No variable collections found in this Figma file. Create at least a Base • Color collection with Light and Dark modes, then try again.",
+      "No variable collections found in this Figma file. Create at least a Color collection with Light and Dark modes, then try again.",
     );
     return { css: "", warnings, errors };
   }
