@@ -6,13 +6,14 @@ import type {
   UnitChoice,
 } from "../../shared/messages.js";
 import { rgbaToOklchCss } from "../color/oklch.js";
-import { toKebabName } from "../naming/kebab.js";
+import { kebab, toKebabName } from "../naming/kebab.js";
 import {
   emitFontDeclarations,
   fontsourceImports,
   type FontAssignment,
 } from "../fonts/strategy.js";
 import { STERA_UTILITIES } from "./utilities.js";
+import { isTailwindDefaultRadius } from "./tailwind-defaults.js";
 
 export type GenerateOptions = {
   collections: SerializedCollection[];
@@ -39,6 +40,8 @@ const INCLUDED_COLLECTIONS = new Set([
   TYPOGRAPHY_COLLECTION,
 ]);
 const STRIP_FIRST_SEGMENT = new Set([TYPOGRAPHY_COLLECTION]);
+const REFERENCE_COLLECTION = /^Reference\b/i;
+const RADII_GROUP_SEGMENTS = new Set(["radii", "radius"]);
 const TYPO_CATEGORY_SEGMENTS = new Set([
   "size",
   "weight",
@@ -262,6 +265,51 @@ function buildThemeInline(themeDecls: Decl[]): string | null {
   return `@theme inline {\n${lines.join("\n")}\n}`;
 }
 
+/**
+ * Reference collections mirror Tailwind, so they stay out of :root. The Radii
+ * group is the one exception: anything Tailwind does not already ship has to be
+ * declared for `rounded-*` to exist. Always px — radii don't want rem scaling,
+ * and `Radii/Full` would otherwise become 624.9375rem.
+ */
+function radiusDecls(
+  referenceCollections: SerializedCollection[],
+  warnings: string[],
+): Decl[] {
+  const found: Array<{ decl: Decl; px: number }> = [];
+  for (const collection of referenceCollections) {
+    const modeId = collection.modes[0]?.id;
+    if (!modeId) continue;
+    for (const v of collection.variables) {
+      if (v.type !== "FLOAT") continue;
+      const segments = v.name.split("/");
+      if (segments.length < 2) continue;
+      if (!RADII_GROUP_SEGMENTS.has(kebab(segments[0]))) continue;
+      const key = toKebabName(segments.slice(1).join("/"), undefined).replace(/^--/, "");
+      if (!key) continue;
+      const value = v.valuesByMode[modeId];
+      if (!value) continue;
+      if (value.kind !== "number") {
+        warnings.push(
+          `Radius "${v.name}" does not resolve to a number and was skipped. Give it a literal value in Figma to export it.`,
+        );
+        continue;
+      }
+      const px = Math.round(value.value * 10000) / 10000;
+      if (isTailwindDefaultRadius(key, px)) continue;
+      found.push({
+        decl: { name: `--radius-${key}`, head: `radius-${key}`, value: `${px}px` },
+        px,
+      });
+    }
+  }
+  return stableSortBy(found, (f) => f.px).map((f) => f.decl);
+}
+
+function buildThemeBlock(decls: Decl[]): string | null {
+  if (decls.length === 0) return null;
+  return `@theme {\n${formatDecls(decls, "  ")}\n}`;
+}
+
 export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
   const warnings: string[] = [];
   const errors: string[] = [];
@@ -283,7 +331,8 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
     return { css: "", warnings, errors };
   }
 
-  const filtered = collections.filter((c) => !/^Reference\b/i.test(c.name));
+  const referenceCollections = collections.filter((c) => REFERENCE_COLLECTION.test(c.name));
+  const filtered = collections.filter((c) => !REFERENCE_COLLECTION.test(c.name));
   const scoped = filtered.filter((c) => INCLUDED_COLLECTIONS.has(c.name));
   if (scoped.length === 0) {
     errors.push(
@@ -394,6 +443,7 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
   const sortedThemeDecls = stableSortBy(themeDecls, (d) => semanticGroupKey(d.head));
 
   const themeInline = buildThemeInline(sortedThemeDecls);
+  const themeBlock = buildThemeBlock(radiusDecls(referenceCollections, warnings));
 
   const rootSections: string[] = [];
   if (sortedColorLight.length > 0) rootSections.push(formatDecls(sortedColorLight, "  "));
@@ -408,6 +458,9 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
   ];
   if (themeInline) {
     parts.push(themeInline, "");
+  }
+  if (themeBlock) {
+    parts.push(themeBlock, "");
   }
   parts.push(":root {", rootSections.join("\n\n"), "}", "");
   parts.push(".dark {", formatDecls(sortedColorDark, "  "), "}", "");

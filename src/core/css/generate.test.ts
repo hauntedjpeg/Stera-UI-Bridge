@@ -127,6 +127,24 @@ const referenceDimension: SerializedCollection = {
       type: "FLOAT",
       valuesByMode: { default: { kind: "number", value: 4 } },
     },
+    {
+      id: "v-radii-md",
+      name: "Radii/MD",
+      type: "FLOAT",
+      valuesByMode: { default: { kind: "number", value: 6 } },
+    },
+    {
+      id: "v-radii-10",
+      name: "Radii/10",
+      type: "FLOAT",
+      valuesByMode: { default: { kind: "number", value: 10 } },
+    },
+    {
+      id: "v-radii-full",
+      name: "Radii/Full",
+      type: "FLOAT",
+      valuesByMode: { default: { kind: "number", value: 9999 } },
+    },
   ],
 };
 
@@ -203,6 +221,90 @@ describe("generateGlobalsCss", () => {
       collections: [basePrimitives, themeSemantic, baseTypography, referenceDimension],
     });
     expect(css).not.toContain("--spacing-4");
+  });
+
+  describe("Reference radii", () => {
+    const withReference = [
+      basePrimitives,
+      themeSemantic,
+      baseTypography,
+      referenceDimension,
+    ];
+
+    it("emits only radii Tailwind does not already define", () => {
+      const { css } = generateGlobalsCss({ ...baseOptions, collections: withReference });
+      const block = css.match(/@theme \{([\s\S]*?)\n\}/)![1];
+      expect(block).toMatch(/--radius-10:\s*10px;/);
+      expect(css).not.toContain("--radius-md");
+      expect(css).not.toContain("--radius-full");
+    });
+
+    it("emits a radius whose value diverges from the Tailwind default", () => {
+      const overridden: SerializedCollection = {
+        ...referenceDimension,
+        variables: referenceDimension.variables.map((v) =>
+          v.id === "v-radii-md"
+            ? { ...v, valuesByMode: { default: { kind: "number" as const, value: 5 } } }
+            : v,
+        ),
+      };
+      const { css } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [basePrimitives, themeSemantic, baseTypography, overridden],
+      });
+      expect(css).toMatch(/--radius-md:\s*5px;/);
+    });
+
+    it("omits the @theme block entirely when every radius matches Tailwind", () => {
+      const tailwindOnly: SerializedCollection = {
+        ...referenceDimension,
+        variables: referenceDimension.variables.filter((v) => v.id !== "v-radii-10"),
+      };
+      const { css } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [basePrimitives, themeSemantic, baseTypography, tailwindOnly],
+      });
+      expect(css).not.toMatch(/@theme \{/);
+      expect(css).toContain("@theme inline");
+    });
+
+    it("does not apply the user prefix to radius variables", () => {
+      const { css } = generateGlobalsCss({
+        ...baseOptions,
+        prefix: "stera",
+        collections: withReference,
+      });
+      expect(css).toMatch(/--radius-10:\s*10px;/);
+      expect(css).not.toContain("--stera-radius-10");
+    });
+
+    it("places the @theme block after @theme inline and before :root", () => {
+      const { css } = generateGlobalsCss({ ...baseOptions, collections: withReference });
+      expect(css.indexOf("@theme inline")).toBeLessThan(css.indexOf("@theme {"));
+      expect(css.indexOf("@theme {")).toBeLessThan(css.indexOf(":root {"));
+    });
+
+    it("warns and skips a radius that does not resolve to a number", () => {
+      const aliased: SerializedCollection = {
+        ...referenceDimension,
+        variables: referenceDimension.variables.map((v) =>
+          v.id === "v-radii-10"
+            ? {
+                ...v,
+                valuesByMode: {
+                  default: { kind: "alias" as const, targetId: "v-missing" },
+                },
+              }
+            : v,
+        ),
+      };
+      const { css, warnings } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [basePrimitives, themeSemantic, baseTypography, aliased],
+      });
+      expect(css).not.toContain("--radius-10");
+      expect(warnings.some((w) => /Radii\/10/.test(w))).toBe(true);
+    });
   });
 
   it("emits Color light primitives in :root and dark overrides in .dark", () => {

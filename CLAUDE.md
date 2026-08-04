@@ -32,7 +32,9 @@ Data flow: UI mounts → posts `load-variables` → sandbox calls `figma.variabl
 
 The exporter is opinionated about Figma collection names — it only includes collections named `Color`, `Theme`, or `Typography` (see `INCLUDED_COLLECTIONS`). Collections whose names start with `Reference` are filtered out. Missing the `Color` collection or its Dark mode is a hard error returned to the UI.
 
-Output structure: `@import` lines → `@custom-variant dark` → optional `@theme inline { … }` (semantic colors mapped to `--color-*`) → `:root { … }` (light-mode primitives + typography + semantic) → `.dark { … }` (dark-mode primitives) → `STERA_UTILITIES` block.
+One carve-out: `Reference*` collections stay out of `:root`, but their `Radii` group is scanned by `radiusDecls`. Any radius Tailwind doesn't already ship (see `src/core/css/tailwind-defaults.ts`) is emitted as `--radius-<key>` in px inside a `@theme` block, so `rounded-<key>` resolves. Tailwind-identical radii are skipped.
+
+Output structure: `@import` lines → `@custom-variant dark` → optional `@theme inline { … }` (semantic colors mapped to `--color-*`) → optional `@theme { … }` (custom radii) → `:root { … }` (light-mode primitives + typography + semantic) → `.dark { … }` (dark-mode primitives) → `STERA_UTILITIES` block.
 
 Variable names go through `normalizeName` → `toKebabName` → `rewriteTypographyHead`. The Typography collection has special-case rewrites (`size` → `font-size`, `weight` → `font-weight`, etc.) that don't apply to other collections.
 
