@@ -4,6 +4,7 @@ import type {
   RawVariableValue,
   RawVariablesPayload,
   SerializedCollection,
+  SerializedTextStyle,
   SerializedValue,
   SerializedVariable,
   StoredPrefs,
@@ -162,6 +163,47 @@ async function extractDoc(): Promise<SerializedCollection[]> {
   return out;
 }
 
+const BOUND_TEXT_FIELDS = [
+  "fontFamily",
+  "fontStyle",
+  "fontWeight",
+  "fontSize",
+  "lineHeight",
+  "letterSpacing",
+] as const;
+
+function boundVariableIds(
+  style: TextStyle,
+): SerializedTextStyle["boundVariables"] {
+  const bound = style.boundVariables ?? {};
+  const out: SerializedTextStyle["boundVariables"] = {};
+  for (const field of BOUND_TEXT_FIELDS) {
+    const alias = (bound as Record<string, VariableAlias | undefined>)[field];
+    if (alias && alias.id) out[field] = alias.id;
+  }
+  return out;
+}
+
+async function extractTextStyles(): Promise<SerializedTextStyle[]> {
+  const styles = await figma.getLocalTextStylesAsync();
+  return styles.map((s) => ({
+    id: s.id,
+    name: s.name,
+    fontFamily: s.fontName.family,
+    fontStyle: s.fontName.style,
+    fontSize: s.fontSize,
+    lineHeight:
+      s.lineHeight.unit === "AUTO"
+        ? { unit: "AUTO" as const }
+        : { unit: s.lineHeight.unit, value: s.lineHeight.value },
+    letterSpacing: {
+      unit: s.letterSpacing.unit,
+      value: s.letterSpacing.value,
+    },
+    boundVariables: boundVariableIds(s),
+  }));
+}
+
 function prefsKey(): string {
   const fileKey = figma.fileKey ?? "unknown-file";
   return `${PREFS_KEY_PREFIX}${fileKey}`;
@@ -190,14 +232,15 @@ figma.showUI(__html__, { width: 440, height: 620, themeColors: true });
 figma.ui.onmessage = async (msg: UiToSandbox) => {
   try {
     if (msg.type === "load-variables") {
-      const [collections, raw, prefs] = await Promise.all([
+      const [collections, textStyles, raw, prefs] = await Promise.all([
         extractDoc(),
+        extractTextStyles(),
         extractRawVariables(),
         loadPrefs(),
       ]);
       post({
         type: "variables-loaded",
-        doc: { collections },
+        doc: { collections, textStyles },
         raw,
         prefs,
         fileName: figma.root.name,

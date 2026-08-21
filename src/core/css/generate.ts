@@ -1,5 +1,6 @@
 import type {
   SerializedCollection,
+  SerializedTextStyle,
   SerializedValue,
   FontStrategy,
   NextFontConvention,
@@ -12,11 +13,13 @@ import {
   fontsourceImports,
   type FontAssignment,
 } from "../fonts/strategy.js";
-import { STERA_UTILITIES } from "./utilities.js";
+import { STERA_BASE_UTILITIES, STERA_UTILITIES } from "./utilities.js";
+import { buildUtilities, findUnresolvedReferences } from "./text-styles.js";
 import { isTailwindDefaultRadius } from "./tailwind-defaults.js";
 
 export type GenerateOptions = {
   collections: SerializedCollection[];
+  textStyles?: SerializedTextStyle[];
   strategy: FontStrategy;
   nextConvention: NextFontConvention;
   unitByCollectionName: Record<string, UnitChoice>;
@@ -316,6 +319,7 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
 
   const {
     collections,
+    textStyles = [],
     strategy,
     nextConvention,
     unitByCollectionName,
@@ -464,7 +468,39 @@ export function generateGlobalsCss(options: GenerateOptions): GenerateResult {
   }
   parts.push(":root {", rootSections.join("\n\n"), "}", "");
   parts.push(".dark {", formatDecls(sortedColorDark, "  "), "}", "");
-  parts.push(STERA_UTILITIES, "");
+
+  let utilitiesCss: string;
+  if (textStyles.length === 0) {
+    // `getLocalTextStylesAsync` only returns styles defined in this file, so a
+    // document consuming a published library has none. Ship the built-in set
+    // rather than exporting no typography utilities at all.
+    utilitiesCss = STERA_UTILITIES;
+    warnings.push(
+      "No local text styles found, so the built-in typography utilities were used. These are not derived from your Figma file — if your text styles live in a published library, export from the library file to keep them in sync.",
+    );
+  } else {
+    const built = buildUtilities({
+      textStyles,
+      nameMap,
+      unit: chooseUnit(TYPOGRAPHY_COLLECTION, unitByCollectionName),
+    });
+    utilitiesCss = built.css;
+    warnings.push(...built.warnings);
+  }
+  parts.push(utilitiesCss, "", STERA_BASE_UTILITIES, "");
+
+  const emittedNames = [
+    ...sortedColorLight,
+    ...sortedColorDark,
+    ...sortedTypoDecls,
+    ...sortedThemeDecls,
+  ].map((d) => d.name);
+  const missing = findUnresolvedReferences(utilitiesCss, emittedNames);
+  if (missing.length > 0) {
+    warnings.push(
+      `The typography utilities reference ${missing.length === 1 ? "a variable that is" : "variables that are"} not in this export: ${missing.join(", ")}. Those declarations will not apply.`,
+    );
+  }
 
   return { css: parts.join("\n"), warnings, errors };
 }

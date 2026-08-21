@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { generateGlobalsCss } from "./generate.js";
-import type { SerializedCollection } from "../../shared/messages.js";
+import type {
+  SerializedCollection,
+  SerializedTextStyle,
+} from "../../shared/messages.js";
 
 const basePrimitives: SerializedCollection = {
   id: "col-base-color",
@@ -108,6 +111,18 @@ const baseTypography: SerializedCollection = {
       valuesByMode: { default: { kind: "number", value: 400 } },
     },
     {
+      id: "v-weight-medium",
+      name: "Weight/Medium",
+      type: "FLOAT",
+      valuesByMode: { default: { kind: "number", value: 500 } },
+    },
+    {
+      id: "v-weight-strong",
+      name: "Weight/Strong",
+      type: "FLOAT",
+      valuesByMode: { default: { kind: "number", value: 500 } },
+    },
+    {
       id: "v-ls-tight",
       name: "Letter Spacing/Tight",
       type: "FLOAT",
@@ -154,6 +169,23 @@ const baseOptions = {
   unitByCollectionName: {},
   darkModeIdByCollectionId: {},
   fontAssignments: [],
+};
+
+const headingSmStyle: SerializedTextStyle = {
+  id: "S:1",
+  name: "Heading/SM",
+  fontFamily: "Geist",
+  fontStyle: "Medium",
+  fontSize: 20,
+  lineHeight: { unit: "PIXELS", value: 28 },
+  letterSpacing: { unit: "PIXELS", value: -0.4 },
+  boundVariables: {
+    fontFamily: "v-font-sans",
+    fontSize: "v-size-body-sm",
+    lineHeight: "v-lh-28",
+    fontWeight: "v-weight-strong",
+    letterSpacing: "v-ls-tight",
+  },
 };
 
 describe("generateGlobalsCss", () => {
@@ -398,6 +430,52 @@ describe("generateGlobalsCss", () => {
     });
     expect(css).toMatch(/@utility st-body-sm \{[^}]*var\(--font-size-body-sm\)/);
     expect(css).toMatch(/@utility st-body-sm \{[^}]*var\(--font-weight-regular\)/);
+  });
+
+  it("builds utilities from text styles, using their bound weight", () => {
+    const { css, warnings } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography],
+      textStyles: [headingSmStyle],
+    });
+    expect(css).toMatch(
+      /@utility st-heading-sm \{[^}]*font-weight: var\(--font-weight-strong\);/,
+    );
+    expect(css).not.toContain("var(--font-weight-medium)");
+    expect(warnings).toEqual([]);
+  });
+
+  it("keeps the base utilities and drops the built-in typography blocks", () => {
+    const { css } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography],
+      textStyles: [headingSmStyle],
+    });
+    expect(css).toContain("@utility scrollbar-hide");
+    expect(css).toContain("@layer base {");
+    expect(css).not.toContain("@utility st-hero-xl");
+  });
+
+  it("falls back to the built-in utilities and warns when there are no text styles", () => {
+    const { css, warnings } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography],
+      textStyles: [],
+    });
+    expect(css).toContain("@utility st-hero-xl");
+    expect(warnings.some((w) => /No local text styles found/.test(w))).toBe(true);
+  });
+
+  it("warns when a utility references a variable the export does not emit", () => {
+    const { warnings } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography],
+      textStyles: [],
+    });
+    // The built-in fallback references sizes this fixture does not define.
+    expect(
+      warnings.some((w) => /reference.*not in this export.*--font-size-hero-xl/.test(w)),
+    ).toBe(true);
   });
 
   it("Typography font roles emit without fontAssignments", () => {

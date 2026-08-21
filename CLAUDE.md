@@ -26,7 +26,7 @@ Figma plugins run in two isolated contexts that talk only via `postMessage`. Res
 - `src/shared/messages.ts` — the **only** file imported by both sides. Defines `SandboxToUi` / `UiToSandbox` discriminated unions and `StoredPrefs`. When changing the protocol, update both sides plus this file.
 - `src/core/` — pure, framework-free conversion logic (OKLCH color math, kebab naming, font strategies, CSS assembly). Imported by the UI; **must not** import `figma.*` or browser/React APIs. This is where most CSS-output bugs are fixed and where vitest runs.
 
-Data flow: UI mounts → posts `load-variables` → sandbox calls `figma.variables.getLocalVariableCollectionsAsync()`, serializes to `SerializedCollection[]`, replies with `variables-loaded` → UI feeds `doc` + `prefs` into `generateGlobalsCss()` (re-runs on every prefs change via `useMemo`).
+Data flow: UI mounts → posts `load-variables` → sandbox calls `figma.variables.getLocalVariableCollectionsAsync()` and `figma.getLocalTextStylesAsync()`, serializes to `SerializedCollection[]` + `SerializedTextStyle[]`, replies with `variables-loaded` → UI feeds `doc` + `prefs` into `generateGlobalsCss()` (re-runs on every prefs change via `useMemo`).
 
 ## CSS generation pipeline (`src/core/css/generate.ts`)
 
@@ -34,9 +34,11 @@ The exporter is opinionated about Figma collection names — it only includes co
 
 One carve-out: `Reference*` collections stay out of `:root`, but their `Radii` group is scanned by `radiusDecls`. Any radius Tailwind doesn't already ship (see `src/core/css/tailwind-defaults.ts`) is emitted as `--radius-<key>` in px inside a `@theme` block, so `rounded-<key>` resolves. Tailwind-identical radii are skipped.
 
-Output structure: `@import` lines → `@custom-variant dark` → optional `@theme inline { … }` (semantic colors mapped to `--color-*`) → optional `@theme { … }` (custom radii) → `:root { … }` (light-mode primitives + typography + semantic) → `.dark { … }` (dark-mode primitives) → `STERA_UTILITIES` block.
+Output structure: `@import` lines → `@custom-variant dark` → optional `@theme inline { … }` (semantic colors mapped to `--color-*`) → optional `@theme { … }` (custom radii) → `:root { … }` (light-mode primitives + typography + semantic) → `.dark { … }` (dark-mode primitives) → generated `@utility st-*` blocks → `STERA_BASE_UTILITIES`.
 
 Variable names go through `normalizeName` → `toKebabName` → `rewriteTypographyHead`. The Typography collection has special-case rewrites (`size` → `font-size`, `weight` → `font-weight`, etc.) that don't apply to other collections.
+
+The `@utility st-*` typography blocks are generated from the file's local text styles by `src/core/css/text-styles.ts`. Each field prefers the variable the text style binds (resolved by Figma variable **id** through the same name map as the `:root` decls) — weights like `Weight/Medium` and `Weight/Strong` can share a numeric value, so binding by id is the only lossless route. Unbound or out-of-export fields fall back to a literal and raise a warning. `STERA_UTILITIES` in `src/core/css/utilities.ts` is now only a fallback for files with no local text styles (i.e. the styles live in a published library); `STERA_BASE_UTILITIES` (`scrollbar-hide` + `@layer base`) is always appended. After assembly, `findUnresolvedReferences` warns about any `var(--…)` in the utilities that the export does not actually emit.
 
 Font emission lives in `src/core/fonts/strategy.ts` and is driven by `StoredPrefs.strategy` (`next-font` | `fontsource-variable` | `raw`) plus `nextConvention` (`family-named` | `match-init`). Known families are mapped via `src/core/fonts/registry.ts`; unknown families emit a warning but still produce output.
 

@@ -19,8 +19,37 @@ export type SerializedCollection = {
   variables: SerializedVariable[];
 };
 
+/**
+ * A Figma text style, flattened for the bridge. Bound fields carry the Figma
+ * variable id so the generator can resolve them to the exact custom property —
+ * `Weight/Medium` and `Weight/Strong` can both be 500, so only the variable
+ * identity survives the round trip.
+ */
+export type SerializedTextStyle = {
+  id: string;
+  /** Full Figma path, e.g. "Heading/SM". */
+  name: string;
+  fontFamily: string;
+  /** fontName.style, e.g. "Medium" — the weight fallback when unbound. */
+  fontStyle: string;
+  fontSize: number;
+  lineHeight:
+    | { unit: "AUTO" }
+    | { unit: "PIXELS" | "PERCENT"; value: number };
+  letterSpacing: { unit: "PIXELS" | "PERCENT"; value: number };
+  boundVariables: {
+    fontFamily?: string;
+    fontStyle?: string;
+    fontWeight?: string;
+    fontSize?: string;
+    lineHeight?: string;
+    letterSpacing?: string;
+  };
+};
+
 export type VariableDoc = {
   collections: SerializedCollection[];
+  textStyles: SerializedTextStyle[];
 };
 
 export type RawColorValue = { r: number; g: number; b: number; a: number };

@@ -89,6 +89,7 @@ export function App() {
     if (!doc) return null;
     return generateGlobalsCss({
       collections: doc.collections,
+      textStyles: doc.textStyles,
       strategy: prefs.strategy,
       nextConvention: prefs.nextConvention,
       unitByCollectionName: prefs.unitByCollectionName,

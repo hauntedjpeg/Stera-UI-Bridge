@@ -1,3 +1,8 @@
+/**
+ * Fallback typography utilities, used only when the Figma file exposes no local
+ * text styles (e.g. they live in a published library). Normally these blocks are
+ * generated from the text styles themselves — see `text-styles.ts`.
+ */
 export const STERA_UTILITIES = `@utility st-body-sm {
   font-family: var(--font-sans);
   font-size: var(--font-size-body-sm);
@@ -132,9 +137,13 @@ export const STERA_UTILITIES = `@utility st-body-sm {
   line-height: var(--line-height-120);
   font-weight: var(--font-weight-medium);
   letter-spacing: var(--letter-spacing-tightest);
-}
+}`;
 
-@utility scrollbar-hide {
+/**
+ * Not derivable from text styles — always appended after the generated
+ * `st-*` utilities.
+ */
+export const STERA_BASE_UTILITIES = `@utility scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
