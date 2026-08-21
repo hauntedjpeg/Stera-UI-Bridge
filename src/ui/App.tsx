@@ -126,7 +126,7 @@ export function App() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-[var(--color-text-secondary)]">
+      <div className="flex h-full items-center justify-center text-text-secondary">
         Loading Figma variables…
       </div>
     );
@@ -135,32 +135,32 @@ export function App() {
   if (errorMsg) {
     return (
       <div className="flex h-full flex-col gap-2 p-4">
-        <div className="font-semibold text-[var(--color-danger)]">Error</div>
-        <div className="text-[var(--color-text-secondary)]">{errorMsg}</div>
+        <div className="font-semibold text-danger">Error</div>
+        <div className="text-text-secondary">{errorMsg}</div>
       </div>
     );
   }
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
+      <header className="flex items-center justify-between border-b border-border px-4 py-3">
         <div>
           <div className="font-semibold">Stera UI Bridge</div>
-          <div className="text-[10px] text-[var(--color-text-secondary)]">
+          <div className="text-[10px] text-text-secondary">
             {fileName || "Untitled file"}
           </div>
         </div>
       </header>
 
-      <nav className="flex border-b border-[var(--color-border)]">
+      <nav className="flex border-b border-border">
         {STEPS.map((s) => (
           <button
             key={s.id}
             onClick={() => setStep(s.id)}
             className={`flex-1 border-b-2 px-3 py-2 text-[11px] transition-colors ${
               step === s.id
-                ? "border-[var(--color-brand)] font-semibold text-[var(--color-text)]"
-                : "border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+                ? "border-brand font-semibold text-text"
+                : "border-transparent text-text-secondary hover:text-text"
             }`}
           >
             {s.label}
