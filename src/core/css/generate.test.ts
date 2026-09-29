@@ -1,192 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { generateGlobalsCss } from "./generate.js";
-import type {
-  SerializedCollection,
-  SerializedTextStyle,
-} from "../../shared/messages.js";
-
-const basePrimitives: SerializedCollection = {
-  id: "col-base-color",
-  name: "Color",
-  modes: [
-    { id: "light", name: "Light" },
-    { id: "dark", name: "Dark" },
-  ],
-  variables: [
-    {
-      id: "v-neutral-1",
-      name: "Neutral/1",
-      type: "COLOR",
-      valuesByMode: {
-        light: { kind: "color", r: 0.99, g: 0.99, b: 0.99, a: 1 },
-        dark: { kind: "color", r: 0.05, g: 0.05, b: 0.05, a: 1 },
-      },
-    },
-    {
-      id: "v-neutral-12",
-      name: "Neutral/12",
-      type: "COLOR",
-      valuesByMode: {
-        light: { kind: "color", r: 0.05, g: 0.05, b: 0.05, a: 1 },
-        dark: { kind: "color", r: 0.99, g: 0.99, b: 0.99, a: 1 },
-      },
-    },
-    {
-      id: "v-brand-9",
-      name: "Brand/9",
-      type: "COLOR",
-      valuesByMode: {
-        light: { kind: "color", r: 0.2, g: 0.3, b: 0.9, a: 1 },
-        dark: { kind: "color", r: 0.4, g: 0.5, b: 1.0, a: 1 },
-      },
-    },
-  ],
-};
-
-const themeSemantic: SerializedCollection = {
-  id: "col-theme-color",
-  name: "Theme",
-  modes: [{ id: "value", name: "Value" }],
-  variables: [
-    {
-      id: "v-surface",
-      name: "Surface/-",
-      type: "COLOR",
-      valuesByMode: {
-        value: { kind: "alias", targetId: "v-neutral-1" },
-      },
-    },
-    {
-      id: "v-surface-brand",
-      name: "Surface/Brand/-",
-      type: "COLOR",
-      valuesByMode: {
-        value: { kind: "alias", targetId: "v-brand-9" },
-      },
-    },
-    {
-      id: "v-text",
-      name: "Text/-",
-      type: "COLOR",
-      valuesByMode: {
-        value: { kind: "alias", targetId: "v-neutral-12" },
-      },
-    },
-  ],
-};
-
-const baseTypography: SerializedCollection = {
-  id: "col-base-typo",
-  name: "Typography",
-  modes: [{ id: "default", name: "Default" }],
-  variables: [
-    {
-      id: "v-font-sans",
-      name: "Font/Sans",
-      type: "STRING",
-      valuesByMode: { default: { kind: "string", value: "'Geist'" } },
-    },
-    {
-      id: "v-size-body-sm",
-      name: "Size/Body-SM",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 12 } },
-    },
-    {
-      id: "v-lh-snug",
-      name: "Line Height/Snug",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 16 } },
-    },
-    {
-      id: "v-lh-28",
-      name: "Line Height/28",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 28 } },
-    },
-    {
-      id: "v-weight-regular",
-      name: "Weight/Regular",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 400 } },
-    },
-    {
-      id: "v-weight-medium",
-      name: "Weight/Medium",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 500 } },
-    },
-    {
-      id: "v-weight-strong",
-      name: "Weight/Strong",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 500 } },
-    },
-    {
-      id: "v-ls-tight",
-      name: "Letter Spacing/Tight",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: -0.4 } },
-    },
-  ],
-};
-
-const referenceDimension: SerializedCollection = {
-  id: "col-ref-dim",
-  name: "Reference",
-  modes: [{ id: "default", name: "Default" }],
-  variables: [
-    {
-      id: "v-spacing-4",
-      name: "Spacing/4",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 4 } },
-    },
-    {
-      id: "v-radii-md",
-      name: "Radii/MD",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 6 } },
-    },
-    {
-      id: "v-radii-10",
-      name: "Radii/10",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 10 } },
-    },
-    {
-      id: "v-radii-full",
-      name: "Radii/Full",
-      type: "FLOAT",
-      valuesByMode: { default: { kind: "number", value: 9999 } },
-    },
-  ],
-};
-
-const baseOptions = {
-  strategy: "next-font" as const,
-  nextConvention: "family-named" as const,
-  unitByCollectionName: {},
-  darkModeIdByCollectionId: {},
-  fontAssignments: [],
-};
-
-const headingSmStyle: SerializedTextStyle = {
-  id: "S:1",
-  name: "Heading/SM",
-  fontFamily: "Geist",
-  fontStyle: "Medium",
-  fontSize: 20,
-  lineHeight: { unit: "PIXELS", value: 28 },
-  letterSpacing: { unit: "PIXELS", value: -0.4 },
-  boundVariables: {
-    fontFamily: "v-font-sans",
-    fontSize: "v-size-body-sm",
-    lineHeight: "v-lh-28",
-    fontWeight: "v-weight-strong",
-    letterSpacing: "v-ls-tight",
-  },
-};
+import type { SerializedCollection } from "../../shared/messages.js";
+import {
+  basePrimitives,
+  themeSemantic,
+  baseTypography,
+  referenceDimension,
+  baseOptions,
+  headingSmStyle,
+} from "./fixtures.js";
 
 describe("generateGlobalsCss", () => {
   it("hard-fails when no collections exist", () => {
@@ -198,18 +20,18 @@ describe("generateGlobalsCss", () => {
     expect(css).toBe("");
   });
 
-  it("hard-fails when Color has no dark mode", () => {
+  it("hard-fails when Theme has no dark mode", () => {
     const noDark: SerializedCollection = {
-      ...basePrimitives,
+      ...themeSemantic,
       modes: [{ id: "light", name: "Light" }],
-      variables: basePrimitives.variables.map((v) => ({
+      variables: themeSemantic.variables.map((v) => ({
         ...v,
         valuesByMode: { light: v.valuesByMode.light },
       })),
     };
     const { errors } = generateGlobalsCss({
       ...baseOptions,
-      collections: [noDark, themeSemantic, baseTypography],
+      collections: [basePrimitives, noDark, baseTypography],
     });
     expect(errors[0]).toMatch(/no dark mode/i);
   });
@@ -220,6 +42,27 @@ describe("generateGlobalsCss", () => {
       collections: [themeSemantic, baseTypography],
     });
     expect(errors[0]).toMatch(/"Color"/);
+  });
+
+  it("hard-fails when Theme is missing entirely", () => {
+    const { errors, css } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, baseTypography],
+    });
+    expect(errors[0]).toMatch(/"Theme"/);
+    expect(css).toBe("");
+  });
+
+  it("warns when the Color collection has no Dark ramps", () => {
+    const lightOnly: SerializedCollection = {
+      ...basePrimitives,
+      variables: basePrimitives.variables.filter((v) => !/\/Dark\//.test(v.name)),
+    };
+    const { warnings } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [lightOnly, themeSemantic, baseTypography],
+    });
+    expect(warnings.some((w) => /No Dark ramps/.test(w))).toBe(true);
   });
 
   it("emits expected top-level structure", () => {
@@ -242,7 +85,7 @@ describe("generateGlobalsCss", () => {
     });
     expect(css).toMatch(/--surface:\s*var\(--neutral-1\);/);
     expect(css).toMatch(/--surface-brand:\s*var\(--brand-9\);/);
-    expect(css).toMatch(/--text:\s*var\(--neutral-12\);/);
+    expect(css).toMatch(/--text:\s*var\(--black-11\);/);
     expect(css).not.toMatch(/--surface-:/);
     expect(css).not.toMatch(/--surface-brand-:/);
   });
@@ -255,118 +98,112 @@ describe("generateGlobalsCss", () => {
     expect(css).not.toContain("--spacing-4");
   });
 
-  describe("Reference radii", () => {
-    const withReference = [
-      basePrimitives,
-      themeSemantic,
-      baseTypography,
-      referenceDimension,
-    ];
-
-    it("emits only radii Tailwind does not already define", () => {
-      const { css } = generateGlobalsCss({ ...baseOptions, collections: withReference });
-      const block = css.match(/@theme \{([\s\S]*?)\n\}/)![1];
-      expect(block).toMatch(/--radius-10:\s*10px;/);
-      expect(css).not.toContain("--radius-md");
-      expect(css).not.toContain("--radius-full");
+  it("no longer emits a @theme radius block for a Reference Radii group", () => {
+    const { css } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography, referenceDimension],
     });
-
-    it("emits a radius whose value diverges from the Tailwind default", () => {
-      const overridden: SerializedCollection = {
-        ...referenceDimension,
-        variables: referenceDimension.variables.map((v) =>
-          v.id === "v-radii-md"
-            ? { ...v, valuesByMode: { default: { kind: "number" as const, value: 5 } } }
-            : v,
-        ),
-      };
-      const { css } = generateGlobalsCss({
-        ...baseOptions,
-        collections: [basePrimitives, themeSemantic, baseTypography, overridden],
-      });
-      expect(css).toMatch(/--radius-md:\s*5px;/);
-    });
-
-    it("omits the @theme block entirely when every radius matches Tailwind", () => {
-      const tailwindOnly: SerializedCollection = {
-        ...referenceDimension,
-        variables: referenceDimension.variables.filter((v) => v.id !== "v-radii-10"),
-      };
-      const { css } = generateGlobalsCss({
-        ...baseOptions,
-        collections: [basePrimitives, themeSemantic, baseTypography, tailwindOnly],
-      });
-      expect(css).not.toMatch(/@theme \{/);
-      expect(css).toContain("@theme inline");
-    });
-
-    it("does not apply the user prefix to radius variables", () => {
-      const { css } = generateGlobalsCss({
-        ...baseOptions,
-        prefix: "stera",
-        collections: withReference,
-      });
-      expect(css).toMatch(/--radius-10:\s*10px;/);
-      expect(css).not.toContain("--stera-radius-10");
-    });
-
-    it("places the @theme block after @theme inline and before :root", () => {
-      const { css } = generateGlobalsCss({ ...baseOptions, collections: withReference });
-      expect(css.indexOf("@theme inline")).toBeLessThan(css.indexOf("@theme {"));
-      expect(css.indexOf("@theme {")).toBeLessThan(css.indexOf(":root {"));
-    });
-
-    it("warns and skips a radius that does not resolve to a number", () => {
-      const aliased: SerializedCollection = {
-        ...referenceDimension,
-        variables: referenceDimension.variables.map((v) =>
-          v.id === "v-radii-10"
-            ? {
-                ...v,
-                valuesByMode: {
-                  default: { kind: "alias" as const, targetId: "v-missing" },
-                },
-              }
-            : v,
-        ),
-      };
-      const { css, warnings } = generateGlobalsCss({
-        ...baseOptions,
-        collections: [basePrimitives, themeSemantic, baseTypography, aliased],
-      });
-      expect(css).not.toContain("--radius-10");
-      expect(warnings.some((w) => /Radii\/10/.test(w))).toBe(true);
-    });
+    expect(css).not.toMatch(/@theme \{/);
+    expect(css).not.toContain("--radius-");
+    expect(css).toContain("@theme inline");
   });
 
-  it("emits Color light primitives in :root and dark overrides in .dark", () => {
+  it("drops the Light segment from ramp names but keeps Dark", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
       collections: [basePrimitives, themeSemantic, baseTypography],
     });
-    const rootMatch = css.match(/:root \{([\s\S]*?)\n\}/);
-    const darkMatch = css.match(/\.dark \{([\s\S]*?)\n\}/);
-    expect(rootMatch).not.toBeNull();
-    expect(darkMatch).not.toBeNull();
-    const rootBody = rootMatch![1];
-    const darkBody = darkMatch![1];
+    const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
     expect(rootBody).toMatch(/--neutral-1:\s*oklch\(/);
+    expect(rootBody).toMatch(/--neutral-dark-1:\s*oklch\(/);
     expect(rootBody).toMatch(/--brand-9:\s*oklch\(/);
-    expect(darkBody).toMatch(/--neutral-1:\s*oklch\(/);
-    expect(darkBody).toMatch(/--brand-9:\s*oklch\(/);
+    expect(rootBody).toMatch(/--brand-dark-3:\s*oklch\(/);
+    // Black/White have no Light/Dark subgroup and stay unqualified.
+    expect(rootBody).toMatch(/--black-11:\s*oklch\(/);
+    expect(rootBody).toMatch(/--white-11:\s*oklch\(/);
+    expect(css).not.toMatch(/--neutral-light-/);
   });
 
-  it(".dark contains only Color primitives, no semantic or typography vars", () => {
+  it("sorts each family light-ramp-first regardless of Figma order", () => {
+    const shuffled: SerializedCollection = {
+      ...basePrimitives,
+      variables: [...basePrimitives.variables].reverse(),
+    };
+    const { css } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [shuffled, themeSemantic, baseTypography],
+    });
+    const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+    expect(rootBody.indexOf("--neutral-1:")).toBeLessThan(
+      rootBody.indexOf("--neutral-dark-1:"),
+    );
+    expect(rootBody.indexOf("--neutral-dark-12:")).toBeLessThan(
+      rootBody.indexOf("--brand-9:"),
+    );
+  });
+
+  it(".dark holds only semantic tokens — ramps are never redeclared", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,
       collections: [basePrimitives, themeSemantic, baseTypography],
     });
-    const darkMatch = css.match(/\.dark \{([\s\S]*?)\n\}/);
-    const darkBody = darkMatch![1];
-    expect(darkBody).not.toMatch(/--surface\b/);
-    expect(darkBody).not.toMatch(/--text\b/);
+    const darkBody = css.match(/\.dark \{([\s\S]*?)\n\}/)![1];
+    expect(darkBody).not.toMatch(/--neutral-1:\s*oklch\(/);
+    expect(darkBody).not.toMatch(/--brand-9:\s*oklch\(/);
     expect(darkBody).not.toMatch(/--font-size-/);
     expect(darkBody).not.toMatch(/--font-weight-/);
+    expect(darkBody).toMatch(/--surface:\s*var\(--neutral-dark-1\);/);
+    expect(darkBody).toMatch(/--text:\s*var\(--white-11\);/);
+  });
+
+  it("switches semantic tokens per mode, including across ramps and steps", () => {
+    const { css } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography],
+    });
+    const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+    const darkBody = css.match(/\.dark \{([\s\S]*?)\n\}/)![1];
+
+    // Different step of the same ramp.
+    expect(rootBody).toMatch(/--surface-brand:\s*var\(--brand-9\);/);
+    expect(darkBody).toMatch(/--surface-brand:\s*var\(--brand-dark-3\);/);
+
+    // Different ramp entirely.
+    expect(rootBody).toMatch(/--text:\s*var\(--black-11\);/);
+    expect(darkBody).toMatch(/--text:\s*var\(--white-11\);/);
+
+    // Mode-invariant: the same primitive in both blocks. This is only lossless
+    // because ramps are never redeclared under `.dark`.
+    expect(rootBody).toMatch(/--text-onbrand:\s*var\(--neutral-1\);/);
+    expect(darkBody).toMatch(/--text-onbrand:\s*var\(--neutral-1\);/);
+  });
+
+  it("mirrors every semantic token into .dark", () => {
+    const { css } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography],
+    });
+    const darkBody = css.match(/\.dark \{([\s\S]*?)\n\}/)![1];
+    const darkLines = darkBody.match(/--[a-z0-9-]+:/g) ?? [];
+    expect(darkLines.length).toBe(themeSemantic.variables.length);
+  });
+
+  it("warns when a semantic token has no value in the dark mode", () => {
+    const partial: SerializedCollection = {
+      ...themeSemantic,
+      variables: themeSemantic.variables.map((v) =>
+        v.id === "v-text-onbrand"
+          ? { ...v, valuesByMode: { light: v.valuesByMode.light } }
+          : v,
+      ),
+    };
+    const { warnings } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, partial, baseTypography],
+    });
+    expect(
+      warnings.some((w) => /no value in the dark mode.*--text-onbrand/.test(w)),
+    ).toBe(true);
   });
 
   it("Theme aliases resolve to var(--primitive) references", () => {
@@ -442,6 +279,24 @@ describe("generateGlobalsCss", () => {
       /@utility st-heading-sm \{[^}]*font-weight: var\(--font-weight-strong\);/,
     );
     expect(css).not.toContain("var(--font-weight-medium)");
+    expect(warnings).toEqual([]);
+  });
+
+  it("maps raw letter spacing to Tailwind tracking without warnings", () => {
+    const { css, warnings } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [basePrimitives, themeSemantic, baseTypography],
+      textStyles: [
+        {
+          ...headingSmStyle,
+          letterSpacing: { unit: "PERCENT", value: -5 },
+          boundVariables: { ...headingSmStyle.boundVariables, letterSpacing: undefined },
+        },
+      ],
+    });
+    expect(css).toMatch(
+      /@utility st-heading-sm \{[^}]*letter-spacing: var\(--tracking-tighter\);/,
+    );
     expect(warnings).toEqual([]);
   });
 

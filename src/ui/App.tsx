@@ -12,7 +12,8 @@ import {
 } from "../shared/messages.js";
 import { useFigmaMessages } from "./hooks/useFigmaMessages.js";
 import { generateGlobalsCss } from "../core/css/generate.js";
-import type { FontAssignment } from "../core/fonts/strategy.js";
+import { generatePartials } from "../core/css/partials.js";
+import { deriveFontAssignments } from "../core/css/model.js";
 import { PreviewView } from "./views/PreviewView.js";
 import { FontStrategyView } from "./views/FontStrategyView.js";
 import { OptionsView } from "./views/OptionsView.js";
@@ -26,34 +27,6 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "options", label: "Options" },
   { id: "export", label: "Export" },
 ];
-
-function deriveFontAssignments(doc: VariableDoc | null): FontAssignment[] {
-  if (!doc) return [];
-  const stringVars = doc.collections.flatMap((c) =>
-    c.variables
-      .filter((v) => v.type === "STRING")
-      .map((v) => {
-        const firstMode = Object.keys(v.valuesByMode)[0];
-        const val = firstMode ? v.valuesByMode[firstMode] : undefined;
-        const family =
-          val && val.kind === "string" ? val.value : "";
-        const role = v.name.toLowerCase().includes("mono")
-          ? "--font-mono"
-          : v.name.toLowerCase().includes("heading")
-            ? "--font-heading"
-            : "--font-sans";
-        return { role, family };
-      }),
-  );
-  if (stringVars.length === 0) {
-    return [
-      { role: "--font-sans", family: "Geist" },
-      { role: "--font-mono", family: "Geist Mono" },
-      { role: "--font-heading", family: "Geist" },
-    ];
-  }
-  return stringVars;
-}
 
 export function App() {
   const [doc, setDoc] = useState<VariableDoc | null>(null);
@@ -83,11 +56,14 @@ export function App() {
     postToSandbox({ type: "load-variables" });
   }, []);
 
-  const fontAssignments = useMemo(() => deriveFontAssignments(doc), [doc]);
+  const fontAssignments = useMemo(
+    () => (doc ? deriveFontAssignments(doc.collections, prefs.prefix) : []),
+    [doc, prefs.prefix],
+  );
 
-  const output = useMemo(() => {
+  const generateOptions = useMemo(() => {
     if (!doc) return null;
-    return generateGlobalsCss({
+    return {
       collections: doc.collections,
       textStyles: doc.textStyles,
       strategy: prefs.strategy,
@@ -96,8 +72,24 @@ export function App() {
       prefix: prefs.prefix,
       darkModeIdByCollectionId: prefs.darkModeIdByCollectionId,
       fontAssignments,
-    });
+    };
   }, [doc, prefs, fontAssignments]);
+
+  const output = useMemo(
+    () => (generateOptions ? generateGlobalsCss(generateOptions) : null),
+    [generateOptions],
+  );
+  const partials = useMemo(
+    () => (generateOptions ? generatePartials(generateOptions) : null),
+    [generateOptions],
+  );
+
+  // Partials is the default export mode, so Preview surfaces its warning set —
+  // a superset of the single-file one.
+  const previewOutput = useMemo(
+    () => (output && partials ? { ...output, warnings: partials.warnings } : output),
+    [output, partials],
+  );
 
   const updatePrefs = (patch: Partial<StoredPrefs>) => {
     setPrefs((prev) => {
@@ -170,7 +162,7 @@ export function App() {
 
       <main className="flex-1 overflow-auto">
         {step === "preview" && doc && (
-          <PreviewView doc={doc} output={output} onAdvance={() => setStep("fonts")} />
+          <PreviewView doc={doc} output={previewOutput} onAdvance={() => setStep("fonts")} />
         )}
         {step === "fonts" && doc && (
           <FontStrategyView
@@ -192,8 +184,13 @@ export function App() {
             onPrefixChange={setPrefix}
           />
         )}
-        {step === "export" && output && (
-          <ExportView output={output} raw={raw} fileName={fileName} />
+        {step === "export" && output && partials && (
+          <ExportView
+            output={output}
+            partials={partials}
+            raw={raw}
+            fileName={fileName}
+          />
         )}
       </main>
     </div>

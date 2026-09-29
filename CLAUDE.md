@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Stera UI Bridge — a Figma plugin that exports Figma variables as a paste-ready `globals.css` for Stera-UI projects. Runs inside Figma Desktop, not a browser.
+Stera UI Bridge — a Figma plugin that exports Figma variables as paste-ready CSS for Stera-UI projects, either as the `styles/ui/` partials Stera-UI installs or as one flat `globals.css`. Runs inside Figma Desktop, not a browser.
 
 ## Commands (use pnpm)
 
@@ -26,21 +26,28 @@ Figma plugins run in two isolated contexts that talk only via `postMessage`. Res
 - `src/shared/messages.ts` — the **only** file imported by both sides. Defines `SandboxToUi` / `UiToSandbox` discriminated unions and `StoredPrefs`. When changing the protocol, update both sides plus this file.
 - `src/core/` — pure, framework-free conversion logic (OKLCH color math, kebab naming, font strategies, CSS assembly). Imported by the UI; **must not** import `figma.*` or browser/React APIs. This is where most CSS-output bugs are fixed and where vitest runs.
 
-Data flow: UI mounts → posts `load-variables` → sandbox calls `figma.variables.getLocalVariableCollectionsAsync()` and `figma.getLocalTextStylesAsync()`, serializes to `SerializedCollection[]` + `SerializedTextStyle[]`, replies with `variables-loaded` → UI feeds `doc` + `prefs` into `generateGlobalsCss()` (re-runs on every prefs change via `useMemo`).
+Data flow: UI mounts → posts `load-variables` → sandbox calls `figma.variables.getLocalVariableCollectionsAsync()` and `figma.getLocalTextStylesAsync()`, serializes to `SerializedCollection[]` + `SerializedTextStyle[]`, replies with `variables-loaded` → UI builds one `GenerateOptions` and feeds it to both `generatePartials()` and `generateGlobalsCss()` (both re-run on every prefs change via `useMemo`).
 
-## CSS generation pipeline (`src/core/css/generate.ts`)
+## CSS generation pipeline (`src/core/css/model.ts`)
 
-The exporter is opinionated about Figma collection names — it only includes collections named `Color`, `Theme`, or `Typography` (see `INCLUDED_COLLECTIONS`). Collections whose names start with `Reference` are filtered out. Missing the `Color` collection or its Dark mode is a hard error returned to the UI.
+The exporter is opinionated about Figma collection names — it only includes collections named `Color`, `Theme`, or `Typography` (see `INCLUDED_COLLECTIONS`). Collections whose names start with `Reference` are filtered out.
 
-One carve-out: `Reference*` collections stay out of `:root`, but their `Radii` group is scanned by `radiusDecls`. Any radius Tailwind doesn't already ship (see `src/core/css/tailwind-defaults.ts`) is emitted as `--radius-<key>` in px inside a `@theme` block, so `rounded-<key>` resolves. Tailwind-identical radii are skipped.
+**Light/dark lives in the semantic layer, not the primitives.** `Color` is a mode-less collection of ramps grouped `Family/Light/N` and `Family/Dark/N` (`Black`/`White` alpha ramps have no subgroup); `Theme` carries the `Light` and `Dark` modes and aliases into those ramps per mode. So every primitive is declared exactly once in `:root` and `.dark` overrides only semantic tokens. That is what keeps a token like `Text/Onbrand` — which points at `Neutral/Light/1` in *both* modes — lossless: because no ramp is ever redeclared, `var(--neutral-1)` means the same thing inside `.dark` as outside. Two hard errors: a missing `Color` collection, and a missing `Theme` collection or one without a Dark mode (name it `Dark`, or map it in the Options tab).
 
-Output structure: `@import` lines → `@custom-variant dark` → optional `@theme inline { … }` (semantic colors mapped to `--color-*`) → optional `@theme { … }` (custom radii) → `:root { … }` (light-mode primitives + typography + semantic) → `.dark { … }` (dark-mode primitives) → generated `@utility st-*` blocks → `STERA_BASE_UTILITIES`.
+In the `Color` collection a non-leading `Light` segment is dropped during naming, so the light ramp keeps the unqualified name downstream code has always used and only dark is namespaced: `Neutral/Light/1` → `--neutral-1`, `Neutral/Dark/1` → `--neutral-dark-1`.
+
+`buildModel()` in `src/core/css/model.ts` does all the work — validation, name normalization, decl building, sorting, utility generation — and returns a framework-agnostic `CssModel`. Two renderers consume it, so the output shapes can never drift on naming, units, or ordering:
+
+`CssModel` is `{ imports, colorRamps, typography, semanticLight, semanticDark, utilitiesCss }` — one ramp list, two semantic lists.
+
+- `generateGlobalsCss()` (`src/core/css/generate.ts`) — one flat file: `@import` lines → `@custom-variant dark` → optional `@theme inline { … }` (semantic colors mapped to `--color-*`) → `:root { … }` (all ramps + typography + light semantic) → `.dark { … }` (dark semantic, every token mirrored) → generated `@utility st-*` blocks → `STERA_BASE_UTILITIES`.
+- `generatePartials()` (`src/core/css/partials.ts`) — the default. Mirrors Stera-UI's `styles/ui/` directory: `ui/index.css` (import manifest + `@custom-variant dark`), `ui/colors.css` (`@theme inline` + `:root` ramps and light semantic aliases + `.dark` dark semantic aliases), `ui/typography.css` (`:root` type tokens + `@utility st-*` blocks). `base.css`, `scrollbar.css` and `scroll-fade.css` are static Stera-UI files, so they are imported by `index.css` but never generated — which is why partials mode does **not** emit `STERA_BASE_UTILITIES`.
 
 Variable names go through `normalizeName` → `toKebabName` → `rewriteTypographyHead`. The Typography collection has special-case rewrites (`size` → `font-size`, `weight` → `font-weight`, etc.) that don't apply to other collections.
 
-The `@utility st-*` typography blocks are generated from the file's local text styles by `src/core/css/text-styles.ts`. Each field prefers the variable the text style binds (resolved by Figma variable **id** through the same name map as the `:root` decls) — weights like `Weight/Medium` and `Weight/Strong` can share a numeric value, so binding by id is the only lossless route. Unbound or out-of-export fields fall back to a literal and raise a warning. `STERA_UTILITIES` in `src/core/css/utilities.ts` is now only a fallback for files with no local text styles (i.e. the styles live in a published library); `STERA_BASE_UTILITIES` (`scrollbar-hide` + `@layer base`) is always appended. After assembly, `findUnresolvedReferences` warns about any `var(--…)` in the utilities that the export does not actually emit.
+The `@utility st-*` typography blocks are generated from the file's local text styles by `src/core/css/text-styles.ts`. Each field prefers the variable the text style binds (resolved by Figma variable **id** through the same name map as the `:root` decls) — weights like `Weight/Medium` and `Weight/Strong` can share a numeric value, so binding by id is the only lossless route. Unbound or out-of-export fields fall back to a literal and raise a warning — except unbound letter spacing, which is a legitimate raw value: it maps to Tailwind's `var(--tracking-*)` when it lands exactly on that scale, otherwise emits a literal, and never warns (`TAILWIND_THEME_VARS` keeps `findUnresolvedReferences` from flagging those names). `STERA_UTILITIES` in `src/core/css/utilities.ts` is now only a fallback for files with no local text styles (i.e. the styles live in a published library); `STERA_BASE_UTILITIES` (`scrollbar-hide` + `@layer base`) is appended by the single-file renderer only. After assembly, `findUnresolvedReferences` warns about any `var(--…)` in the utilities that the export does not actually emit.
 
-Font emission lives in `src/core/fonts/strategy.ts` and is driven by `StoredPrefs.strategy` (`next-font` | `fontsource-variable` | `raw`) plus `nextConvention` (`family-named` | `match-init`). Known families are mapped via `src/core/fonts/registry.ts`; unknown families emit a warning but still produce output.
+Font emission lives in `src/core/fonts/strategy.ts` and is driven by `StoredPrefs.strategy` (`next-font` | `fontsource-variable` | `raw`) plus `nextConvention` (`family-named` | `match-init`). Font roles come from `deriveFontAssignments()` in `model.ts`: only STRING variables in the Typography collection whose exported name is `--font`/`--font-*` count, and the role *is* that exported name (so it matches the `:root` decl and text-style utilities); with none, the Geist defaults apply. `src/core/fonts/registry.ts` is a list of exceptions: for `next-font` the variable defaults to `--font-<kebab family>` and the registry only overrides it (e.g. Geist → `--font-geist-sans`), so unknown families don't warn; for `fontsource-variable` the registry supplies the package and registered family name, so unknown families warn (once per family).
 
 ## Conventions
 

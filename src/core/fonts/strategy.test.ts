@@ -19,14 +19,14 @@ describe("emitFontDeclarations — next-font / family-named", () => {
     expect(warnings).toEqual([]);
   });
 
-  it("warns and falls back for unknown family", () => {
+  it("derives the variable from the family name for unknown fonts, without warning", () => {
     const { declarations, warnings } = emitFontDeclarations(
       [unknown],
       "next-font",
       "family-named",
     );
     expect(declarations).toEqual(["  --font-display: var(--font-obscurity-pro);"]);
-    expect(warnings).toHaveLength(1);
+    expect(warnings).toEqual([]);
   });
 });
 
@@ -60,6 +60,15 @@ describe("emitFontDeclarations — fontsource-variable", () => {
   it("warns for unknown family but still emits something usable", () => {
     const { declarations, warnings } = emitFontDeclarations([unknown], "fontsource-variable");
     expect(declarations[0]).toContain("'Obscurity Pro'");
+    expect(warnings).toHaveLength(1);
+  });
+
+  it("warns once per unknown family, however many roles use it", () => {
+    const { declarations, warnings } = emitFontDeclarations(
+      [unknown, { role: "--font-heading", family: "Obscurity Pro" }],
+      "fontsource-variable",
+    );
+    expect(declarations).toHaveLength(2);
     expect(warnings).toHaveLength(1);
   });
 });

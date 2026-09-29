@@ -119,6 +119,7 @@ describe("buildUtilities", () => {
     expect(
       warnings.some((w) => /"Heading\/SM".*no variable bound to line height/.test(w)),
     ).toBe(true);
+    expect(warnings.some((w) => /letter spacing/.test(w))).toBe(false);
   });
 
   it("falls back and warns when a bound variable is outside the export", () => {
@@ -159,6 +160,56 @@ describe("buildUtilities", () => {
     });
     expect(css).toContain("line-height: normal;");
     expect(css).toContain("letter-spacing: -0.02em;");
+  });
+
+  it.each([
+    [-5, "tighter"],
+    [-2.5, "tight"],
+    [0, "normal"],
+    [2.5, "wide"],
+    [5, "wider"],
+    [10, "widest"],
+  ])("maps raw %s%% letter spacing to var(--tracking-%s) without warning", (value, key) => {
+    const { css, warnings } = buildUtilities({
+      textStyles: [
+        style({
+          letterSpacing: { unit: "PERCENT", value },
+          boundVariables: { ...style().boundVariables, letterSpacing: undefined },
+        }),
+      ],
+      ...opts,
+    });
+    expect(css).toContain(`letter-spacing: var(--tracking-${key});`);
+    expect(warnings).toEqual([]);
+  });
+
+  it("maps pixel letter spacing that lands exactly on the tracking scale", () => {
+    const { css } = buildUtilities({
+      textStyles: [
+        style({
+          fontSize: 20,
+          letterSpacing: { unit: "PIXELS", value: -1 },
+          boundVariables: {},
+        }),
+      ],
+      ...opts,
+    });
+    expect(css).toContain("letter-spacing: var(--tracking-tighter);");
+  });
+
+  it("still warns when letter spacing is bound to a variable outside the export", () => {
+    const { css, warnings } = buildUtilities({
+      textStyles: [
+        style({
+          boundVariables: { ...style().boundVariables, letterSpacing: "v-not-exported" },
+        }),
+      ],
+      ...opts,
+    });
+    expect(css).toContain("letter-spacing: -0.025rem;");
+    expect(
+      warnings.some((w) => /letter spacing to a variable that is not part/.test(w)),
+    ).toBe(true);
   });
 });
 

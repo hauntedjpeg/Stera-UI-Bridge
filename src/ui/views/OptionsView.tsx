@@ -22,8 +22,11 @@ export function OptionsView({
   const numberCollections = doc.collections.filter((c) =>
     c.variables.some((v) => v.type === "FLOAT"),
   );
-  const colorCollections = doc.collections.filter((c) =>
-    c.variables.some((v) => v.type === "COLOR"),
+  // Only multi-mode collections are worth mapping — since light/dark moved to
+  // the semantic layer, the primitive Color collection is mode-less and would
+  // otherwise render a one-option dropdown.
+  const colorCollections = doc.collections.filter(
+    (c) => c.modes.length > 1 && c.variables.some((v) => v.type === "COLOR"),
   );
 
   return (

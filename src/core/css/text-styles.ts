@@ -40,8 +40,37 @@ const STYLE_NAME_WEIGHTS: Record<string, number> = {
 
 const CATEGORY_ORDER = ["body", "heading", "display", "hero"];
 
+/**
+ * Tailwind v4's default `tracking-*` scale, in em. Raw letter spacing that
+ * lands exactly on a step is emitted as Tailwind's own theme variable.
+ */
+const TAILWIND_TRACKING_EM: Record<string, number> = {
+  tighter: -0.05,
+  tight: -0.025,
+  normal: 0,
+  wide: 0.025,
+  wider: 0.05,
+  widest: 0.1,
+};
+
+/**
+ * Custom properties Tailwind itself declares (via `@import "tailwindcss"`), so
+ * utilities may reference them even though this export never emits them.
+ */
+export const TAILWIND_THEME_VARS: string[] = Object.keys(TAILWIND_TRACKING_EM).map(
+  (key) => `--tracking-${key}`,
+);
+
 function round(n: number): number {
   return Math.round(n * 10000) / 10000;
+}
+
+function tailwindTracking(em: number): string | null {
+  const value = round(em);
+  for (const [key, step] of Object.entries(TAILWIND_TRACKING_EM)) {
+    if (step === value) return `var(--tracking-${key})`;
+  }
+  return null;
 }
 
 function lengthValue(px: number, unit: UtilityUnit): string {
@@ -85,6 +114,9 @@ const FIELD_LABELS: Record<FieldName, string> = {
  * value, so resolving by variable id is the only lossless route. Unbound (or
  * unresolvable) fields fall back to a literal and raise a warning naming the
  * style and field, so the drift is visible rather than silent.
+ *
+ * Letter spacing is the exception: a raw value is legitimate, so an unbound one
+ * does not warn. Values on Tailwind's tracking scale map to `var(--tracking-*)`.
  */
 export function buildUtilities(
   options: BuildUtilitiesOptions,
@@ -96,6 +128,7 @@ export function buildUtilities(
     style: SerializedTextStyle,
     field: FieldName,
     literal: () => string | null,
+    { warnIfUnbound = true }: { warnIfUnbound?: boolean } = {},
   ): string | null => {
     const boundId = style.boundVariables[field];
     if (boundId) {
@@ -104,7 +137,7 @@ export function buildUtilities(
       warnings.push(
         `Text style "${style.name}" binds its ${FIELD_LABELS[field]} to a variable that is not part of the exported collections. Emitted a literal value instead.`,
       );
-    } else {
+    } else if (warnIfUnbound) {
       warnings.push(
         `Text style "${style.name}" has no variable bound to ${FIELD_LABELS[field]}. Bind it in Figma to keep the export token-based.`,
       );
@@ -139,11 +172,20 @@ export function buildUtilities(
       const derived = weightFromStyleName(style.fontStyle);
       return derived === null ? null : String(derived);
     });
-    const letterSpacing = resolve(style, "letterSpacing", () => {
-      const ls = style.letterSpacing;
-      if (ls.unit === "PERCENT") return `${round(ls.value / 100)}em`;
-      return lengthValue(ls.value, unit);
-    });
+    const letterSpacing = resolve(
+      style,
+      "letterSpacing",
+      () => {
+        const ls = style.letterSpacing;
+        if (ls.unit === "PERCENT") {
+          const em = ls.value / 100;
+          return tailwindTracking(em) ?? `${round(em)}em`;
+        }
+        const fromPx = style.fontSize > 0 ? tailwindTracking(ls.value / style.fontSize) : null;
+        return fromPx ?? lengthValue(ls.value, unit);
+      },
+      { warnIfUnbound: false },
+    );
 
     const decls: string[] = [];
     const push = (prop: string, value: string | null) => {
