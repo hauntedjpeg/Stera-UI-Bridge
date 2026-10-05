@@ -206,6 +206,71 @@ describe("generateGlobalsCss", () => {
     ).toBe(true);
   });
 
+  it("warns when a Color ramp and a Theme token export under the same name", () => {
+    const color: SerializedCollection = {
+      ...basePrimitives,
+      variables: [
+        ...basePrimitives.variables,
+        {
+          id: "v-alpha-light-1",
+          name: "Alpha/Light/1",
+          type: "COLOR",
+          valuesByMode: { value: { kind: "color", r: 0, g: 0, b: 0, a: 0.02 } },
+        },
+      ],
+    };
+    const theme: SerializedCollection = {
+      ...themeSemantic,
+      variables: [
+        ...themeSemantic.variables,
+        {
+          id: "v-alpha-1",
+          name: "Alpha/1",
+          type: "COLOR",
+          valuesByMode: {
+            light: { kind: "alias", targetId: "v-alpha-light-1" },
+            dark: { kind: "alias", targetId: "v-alpha-light-1" },
+          },
+        },
+      ],
+    };
+    const { warnings } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [color, theme, baseTypography],
+    });
+    expect(
+      warnings.some((w) =>
+        /^1 CSS variable name is produced.*--alpha-1 \(Color: Alpha\/Light\/1, Theme: Alpha\/1\)/.test(
+          w,
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("warns when two variables in one collection export under the same name", () => {
+    const color: SerializedCollection = {
+      ...basePrimitives,
+      variables: [
+        ...basePrimitives.variables,
+        {
+          id: "v-neutral-1",
+          name: "Neutral/1",
+          type: "COLOR",
+          valuesByMode: { value: { kind: "color", r: 1, g: 1, b: 1, a: 1 } },
+        },
+      ],
+    };
+    const { warnings } = generateGlobalsCss({
+      ...baseOptions,
+      collections: [color, themeSemantic, baseTypography],
+    });
+    expect(
+      warnings.some((w) =>
+        /--neutral-1 \(Color: Neutral\/Light\/1, Color: Neutral\/1\)/.test(w),
+      ),
+    ).toBe(true);
+  });
+
   it("Theme aliases resolve to var(--primitive) references", () => {
     const { css } = generateGlobalsCss({
       ...baseOptions,

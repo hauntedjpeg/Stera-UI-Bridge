@@ -137,6 +137,31 @@ function buildNameMap(
   return map;
 }
 
+/**
+ * CSS names that more than one Figma variable maps to, each with its sources
+ * labelled `Collection: Path`. Dropping the `Light` ramp segment makes this easy
+ * to hit: `Color: Alpha/Light/1` and `Theme: Alpha/1` both become `--alpha-1`,
+ * and the alias between them then renders as `--alpha-1: var(--alpha-1)`.
+ */
+function findNameCollisions(
+  collections: SerializedCollection[],
+  nameMap: NameMap,
+): Array<{ name: string; sources: string[] }> {
+  const sourcesByName = new Map<string, string[]>();
+  for (const c of collections) {
+    for (const v of c.variables) {
+      const name = nameMap.get(v.id);
+      if (!name) continue;
+      const sources = sourcesByName.get(name) ?? [];
+      sources.push(`${c.name}: ${v.name}`);
+      sourcesByName.set(name, sources);
+    }
+  }
+  return Array.from(sourcesByName, ([name, sources]) => ({ name, sources })).filter(
+    (entry) => entry.sources.length > 1,
+  );
+}
+
 const FONT_FAMILY_HEAD = /^font(-|$)/;
 const DEFAULT_FONT_ASSIGNMENTS: FontAssignment[] = [
   { role: "--font-sans", family: "Geist" },
@@ -436,6 +461,16 @@ export function buildModel(options: GenerateOptions): BuildModelResult {
   }
 
   const nameMap = buildNameMap(scoped, prefix);
+
+  const collisions = findNameCollisions(scoped, nameMap);
+  if (collisions.length > 0) {
+    const list = collisions
+      .map((c) => `${c.name} (${c.sources.join(", ")})`)
+      .join(", ");
+    warnings.push(
+      `${collisions.length} CSS variable name${collisions.length === 1 ? " is" : "s are"} produced by more than one Figma variable, so the later declaration overrides the earlier one and an alias between them becomes a self-reference: ${list}. Rename one side in Figma so each name is unique.`,
+    );
+  }
 
   const unresolved = { count: 0 };
 
