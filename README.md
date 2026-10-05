@@ -21,7 +21,7 @@ In Figma Desktop: **Plugins → Development → Import plugin from manifest…**
 
 - A **`Color`** collection of primitive ramps. Required. It has no modes — each ramp carries `Light` and `Dark` subgroups instead (`Neutral/Light/1`, `Neutral/Dark/1`). Alpha ramps like `Black`/`White` need no subgroup.
 - A **`Theme`** collection with **Light** and **Dark** modes, aliasing into those ramps. Required — this is what carries light/dark. If the dark mode has another name, map it in the plugin's Options tab.
-- A **`Typography`** collection is optional. All other collections are ignored, including `Reference*` ones.
+- A **`Typography`** collection is optional. All other collections are ignored, including `Reference*` ones. A top-level **`Utilities`** group inside `Theme` is ignored the same way. The plugin's Preview and Options tabs only show the exported three. If an exported variable aliases into an ignored collection, its value is inlined as a literal (read from the mode with the matching name, else the first mode).
 - Local text styles become `@utility st-*` blocks; fields bound to variables resolve to the exported custom properties. Letter spacing may be a raw value: steps on Tailwind's scale (e.g. -5% → `var(--tracking-tighter)`) map to Tailwind's theme variables, anything else is emitted as-is.
 
 Slash paths become kebab names: `surface/brand/hover` → `--surface-brand-hover`. In the `Color` collection the `Light` segment is dropped so light ramps keep their plain names — `Neutral/Light/1` → `--neutral-1`, `Neutral/Dark/1` → `--neutral-dark-1`. Every ramp is declared once in `:root`; `.dark` overrides only the semantic tokens.

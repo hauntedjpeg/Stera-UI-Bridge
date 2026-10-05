@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { generateGlobalsCss } from "./generate.js";
-import type { SerializedCollection } from "../../shared/messages.js";
+import type { SerializedCollection, SerializedValue } from "../../shared/messages.js";
+import { rgbaToOklchCss } from "../color/oklch.js";
+import { selectExportedCollections } from "./model.js";
 import {
   basePrimitives,
   themeSemantic,
   baseTypography,
   referenceDimension,
+  figmaOnlyLayout,
   baseOptions,
   headingSmStyle,
 } from "./fixtures.js";
@@ -468,5 +471,180 @@ describe("generateGlobalsCss", () => {
     const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
     expect(rootBody).toMatch(/--font-sans:\s*'Geist';/);
     expect(rootBody).toMatch(/--font-mono:\s*var\(--font-jetbrains-mono\);/);
+  });
+
+  describe("ignored collections", () => {
+    const themeWith = (
+      light: SerializedValue,
+      dark: SerializedValue,
+    ): SerializedCollection => ({
+      ...themeSemantic,
+      variables: [
+        ...themeSemantic.variables,
+        {
+          id: "v-surface-note",
+          name: "Surface/Note",
+          type: "COLOR",
+          valuesByMode: { light, dark },
+        },
+      ],
+    });
+    const alias = (targetId: string): SerializedValue => ({ kind: "alias", targetId });
+
+    it("selects only Color, Theme and Typography", () => {
+      const selected = selectExportedCollections([
+        basePrimitives,
+        figmaOnlyLayout,
+        themeSemantic,
+        referenceDimension,
+        baseTypography,
+        { ...basePrimitives, id: "col-colors", name: "Colors" },
+      ]);
+      expect(selected.map((c) => c.name)).toEqual(["Color", "Theme", "Typography"]);
+    });
+
+    it("contributes nothing from a Figma-only collection", () => {
+      const base = generateGlobalsCss({
+        ...baseOptions,
+        collections: [basePrimitives, themeSemantic, baseTypography],
+      });
+      const withExtra = generateGlobalsCss({
+        ...baseOptions,
+        collections: [basePrimitives, themeSemantic, baseTypography, figmaOnlyLayout],
+      });
+      expect(withExtra.css).toBe(base.css);
+      expect(withExtra.warnings).toEqual(base.warnings);
+      expect(withExtra.css).not.toContain("--gutter");
+    });
+
+    it("inlines a Theme alias into an ignored collection, per mode", () => {
+      const { css, warnings } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [
+          basePrimitives,
+          themeWith(alias("v-layout-annotation"), alias("v-layout-annotation")),
+          baseTypography,
+          figmaOnlyLayout,
+        ],
+      });
+      const red = rgbaToOklchCss({ r: 1, g: 0, b: 0, a: 1 });
+      const blue = rgbaToOklchCss({ r: 0, g: 0, b: 1, a: 1 });
+      const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+      const darkBody = css.match(/\.dark \{([\s\S]*?)\n\}/)![1];
+      expect(rootBody).toContain(`--surface-note: ${red};`);
+      expect(darkBody).toContain(`--surface-note: ${blue};`);
+      expect(css).not.toContain("unresolved alias");
+      expect(warnings.join("\n")).not.toMatch(/could not be resolved/);
+    });
+
+    it("inlines a Typography alias into Reference with the collection unit", () => {
+      const typography: SerializedCollection = {
+        ...baseTypography,
+        variables: [
+          ...baseTypography.variables,
+          {
+            id: "v-size-ref",
+            name: "Size/Ref",
+            type: "FLOAT",
+            valuesByMode: { default: alias("v-spacing-4") },
+          },
+        ],
+      };
+      const { css } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [basePrimitives, themeSemantic, typography, referenceDimension],
+      });
+      expect(css).toMatch(/--font-size-ref:\s*0\.25rem;/);
+    });
+
+    it("stops at the first exported variable in an alias chain", () => {
+      const { css } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [
+          basePrimitives,
+          themeWith(alias("v-layout-proxy"), alias("v-layout-proxy")),
+          baseTypography,
+          figmaOnlyLayout,
+        ],
+      });
+      const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+      const darkBody = css.match(/\.dark \{([\s\S]*?)\n\}/)![1];
+      expect(rootBody).toMatch(/--surface-note:\s*var\(--neutral-1\);/);
+      expect(darkBody).toMatch(/--surface-note:\s*var\(--neutral-dark-1\);/);
+    });
+
+    it("ignores the Utilities group in Theme", () => {
+      const withUtilities: SerializedCollection = {
+        ...themeSemantic,
+        variables: [
+          ...themeSemantic.variables,
+          {
+            id: "v-util-outline",
+            name: "Utilities/Outline",
+            type: "COLOR",
+            valuesByMode: {
+              light: { kind: "color", r: 1, g: 0, b: 0, a: 1 },
+              dark: { kind: "color", r: 0, g: 0, b: 1, a: 1 },
+            },
+          },
+          {
+            id: "v-surface-note",
+            name: "Surface/Note",
+            type: "COLOR",
+            valuesByMode: { light: alias("v-util-outline"), dark: alias("v-util-outline") },
+          },
+        ],
+      };
+      const [, theme] = selectExportedCollections([basePrimitives, withUtilities]);
+      expect(theme.variables.map((v) => v.name)).not.toContain("Utilities/Outline");
+
+      const { css, warnings } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [basePrimitives, withUtilities, baseTypography],
+      });
+      expect(css).not.toContain("--utilities-");
+      expect(css).not.toContain("unresolved alias");
+      expect(warnings.join("\n")).not.toMatch(/could not be resolved/);
+      const rootBody = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+      const darkBody = css.match(/\.dark \{([\s\S]*?)\n\}/)![1];
+      expect(rootBody).toContain(`--surface-note: ${rgbaToOklchCss({ r: 1, g: 0, b: 0, a: 1 })};`);
+      expect(darkBody).toContain(`--surface-note: ${rgbaToOklchCss({ r: 0, g: 0, b: 1, a: 1 })};`);
+    });
+
+    it("keeps a top-level Theme variable that is merely named Utilities", () => {
+      const theme: SerializedCollection = {
+        ...themeSemantic,
+        variables: [
+          ...themeSemantic.variables,
+          {
+            id: "v-utilities",
+            name: "Utilities",
+            type: "COLOR",
+            valuesByMode: {
+              light: alias("v-neutral-light-1"),
+              dark: alias("v-neutral-dark-1"),
+            },
+          },
+        ],
+      };
+      const { css } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [basePrimitives, theme, baseTypography],
+      });
+      expect(css).toMatch(/--utilities:\s*var\(--neutral-1\);/);
+    });
+
+    it("still flags an alias to a variable that does not exist", () => {
+      const { css, warnings } = generateGlobalsCss({
+        ...baseOptions,
+        collections: [
+          basePrimitives,
+          themeWith(alias("v-gone"), alias("v-gone")),
+          baseTypography,
+        ],
+      });
+      expect(css).toContain("/* unresolved alias */");
+      expect(warnings.join("\n")).toMatch(/2 aliases could not be resolved/);
+    });
   });
 });

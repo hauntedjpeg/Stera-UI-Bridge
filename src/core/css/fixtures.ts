@@ -208,6 +208,45 @@ export const referenceDimension: SerializedCollection = {
   ],
 };
 
+/** A Figma-only collection: never exported, but exported tokens may alias into it. */
+export const figmaOnlyLayout: SerializedCollection = {
+  id: "col-layout",
+  name: "Layout",
+  modes: [
+    { id: "layout-light", name: "Light" },
+    { id: "layout-dark", name: "Dark" },
+  ],
+  variables: [
+    {
+      id: "v-layout-gutter",
+      name: "Gutter",
+      type: "FLOAT",
+      valuesByMode: {
+        "layout-light": { kind: "number", value: 24 },
+        "layout-dark": { kind: "number", value: 24 },
+      },
+    },
+    {
+      id: "v-layout-annotation",
+      name: "Annotation",
+      type: "COLOR",
+      valuesByMode: {
+        "layout-light": { kind: "color", r: 1, g: 0, b: 0, a: 1 },
+        "layout-dark": { kind: "color", r: 0, g: 0, b: 1, a: 1 },
+      },
+    },
+    {
+      id: "v-layout-proxy",
+      name: "Proxy",
+      type: "COLOR",
+      valuesByMode: {
+        "layout-light": { kind: "alias", targetId: "v-neutral-light-1" },
+        "layout-dark": { kind: "alias", targetId: "v-neutral-dark-1" },
+      },
+    },
+  ],
+};
+
 export const baseOptions = {
   strategy: "next-font" as const,
   nextConvention: "family-named" as const,

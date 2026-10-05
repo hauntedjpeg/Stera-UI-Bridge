@@ -2,6 +2,7 @@ import type {
   SerializedCollection,
   SerializedTextStyle,
   SerializedValue,
+  SerializedVariable,
   FontStrategy,
   NextFontConvention,
   UnitChoice,
@@ -41,6 +42,10 @@ const INCLUDED_COLLECTIONS = new Set([
 ]);
 const STRIP_FIRST_SEGMENT = new Set([TYPOGRAPHY_COLLECTION]);
 const REFERENCE_COLLECTION = /^Reference\b/i;
+// Top-level groups that only matter inside Figma, per collection.
+const IGNORED_GROUPS: Record<string, RegExp> = {
+  [SEMANTIC_COLOR_COLLECTION]: /^utilities$/i,
+};
 const LIGHT_RAMP_SEGMENT = /^light$/i;
 const DARK_RAMP_SEGMENT = /^dark$/i;
 const TYPO_CATEGORY_SEGMENTS = new Set([
@@ -124,6 +129,40 @@ function normalizeName(
   return prefix ? `--${prefix}-${rewritten}` : `--${rewritten}`;
 }
 
+/**
+ * The collections that map 1:1 to code. Everything else in the file — the
+ * `Reference*` collections and any Figma-only ones — is ignored, both by the
+ * generator and by the UI that lists what will be exported. Figma-only groups
+ * inside an exported collection (`Theme: Utilities/…`) are dropped here too, so
+ * they are treated exactly like a variable in an ignored collection.
+ */
+export function selectExportedCollections(
+  collections: SerializedCollection[],
+): SerializedCollection[] {
+  return collections
+    .filter((c) => !REFERENCE_COLLECTION.test(c.name) && INCLUDED_COLLECTIONS.has(c.name))
+    .map((c) => {
+      const ignored = IGNORED_GROUPS[c.name];
+      if (!ignored) return c;
+      return {
+        ...c,
+        variables: c.variables.filter((v) => {
+          const segments = v.name.split("/");
+          return segments.length < 2 || !ignored.test(segments[0].trim());
+        }),
+      };
+    });
+}
+
+type VariableIndex = Map<string, { v: SerializedVariable; c: SerializedCollection }>;
+
+/** Every variable in the file by id, ignored collections included. */
+function indexVariables(collections: SerializedCollection[]): VariableIndex {
+  return new Map(
+    collections.flatMap((c) => c.variables.map((v) => [v.id, { v, c }] as const)),
+  );
+}
+
 function buildNameMap(
   collections: SerializedCollection[],
   prefix: string | undefined,
@@ -184,9 +223,7 @@ export function deriveFontAssignments(
   const typo = collections.find(
     (c) => c.name === TYPOGRAPHY_COLLECTION && !REFERENCE_COLLECTION.test(c.name),
   );
-  const byId = new Map(
-    collections.flatMap((c) => c.variables.map((v) => [v.id, { v, c }] as const)),
-  );
+  const byId = indexVariables(collections);
 
   const assignments: FontAssignment[] = [];
   for (const v of typo?.variables ?? []) {
@@ -249,6 +286,8 @@ function renderValue(
   nameMap: NameMap,
   unit: NumberUnit,
   unresolved: { count: number },
+  byId: VariableIndex,
+  modeName: string,
 ): string {
   switch (value.kind) {
     case "color":
@@ -264,12 +303,28 @@ function renderValue(
     case "boolean":
       return String(value.value);
     case "alias": {
-      const targetName = nameMap.get(value.targetId);
-      if (!targetName) {
+      // An alias into an ignored collection has no custom property to point at,
+      // so follow it to the first exported variable or, failing that, inline
+      // the literal. The target is read in the mode named like the source's
+      // (Theme's `Dark` reads the target's `Dark`), else its first mode.
+      let current: SerializedValue = value;
+      for (let hops = 0; current.kind === "alias" && hops < 10; hops++) {
+        const targetName = nameMap.get(current.targetId);
+        if (targetName) return `var(${targetName})`;
+        const target = byId.get(current.targetId);
+        if (!target) break;
+        const mode =
+          target.c.modes.find((m) => m.name.toLowerCase() === modeName.toLowerCase()) ??
+          target.c.modes[0];
+        const next = mode ? target.v.valuesByMode[mode.id] : undefined;
+        if (!next) break;
+        current = next;
+      }
+      if (current.kind === "alias") {
         unresolved.count += 1;
         return "/* unresolved alias */";
       }
-      return `var(${targetName})`;
+      return renderValue(current, nameMap, unit, unresolved, byId, modeName);
     }
   }
 }
@@ -300,9 +355,11 @@ function collectionDecls(
   prefix: string | undefined,
   unitByCollectionName: Record<string, UnitChoice>,
   unresolved: { count: number },
+  byId: VariableIndex,
 ): Decl[] {
   const decls: Decl[] = [];
   const unit = chooseUnit(collection.name, unitByCollectionName);
+  const modeName = collection.modes.find((m) => m.id === modeId)?.name ?? "";
   for (const v of collection.variables) {
     const name = nameMap.get(v.id);
     if (!name) continue;
@@ -310,7 +367,11 @@ function collectionDecls(
     const value = v.valuesByMode[modeId];
     if (!value) continue;
     const effectiveUnit = resolveNumberUnit(head, unit);
-    decls.push({ name, head, value: renderValue(value, nameMap, effectiveUnit, unresolved) });
+    decls.push({
+      name,
+      head,
+      value: renderValue(value, nameMap, effectiveUnit, unresolved, byId, modeName),
+    });
   }
   return decls;
 }
@@ -400,8 +461,7 @@ export function buildModel(options: GenerateOptions): BuildModelResult {
     return { model: null, warnings, errors };
   }
 
-  const filtered = collections.filter((c) => !REFERENCE_COLLECTION.test(c.name));
-  const scoped = filtered.filter((c) => INCLUDED_COLLECTIONS.has(c.name));
+  const scoped = selectExportedCollections(collections);
   if (scoped.length === 0) {
     errors.push(
       `No matching variable collections found. Expected at least one of: ${Array.from(INCLUDED_COLLECTIONS).join(", ")}.`,
@@ -473,6 +533,7 @@ export function buildModel(options: GenerateOptions): BuildModelResult {
   }
 
   const unresolved = { count: 0 };
+  const byId = indexVariables(collections);
 
   const colorRampDecls = collectionDecls(
     colorCollection,
@@ -481,6 +542,7 @@ export function buildModel(options: GenerateOptions): BuildModelResult {
     prefix,
     unitByCollectionName,
     unresolved,
+    byId,
   );
   const typoDecls = typoCollection
     ? collectionDecls(
@@ -490,6 +552,7 @@ export function buildModel(options: GenerateOptions): BuildModelResult {
         prefix,
         unitByCollectionName,
         unresolved,
+        byId,
       )
     : [];
   const semanticLightDecls = collectionDecls(
@@ -499,6 +562,7 @@ export function buildModel(options: GenerateOptions): BuildModelResult {
     prefix,
     unitByCollectionName,
     unresolved,
+    byId,
   );
   const semanticDarkDecls = collectionDecls(
     themeCollection,
@@ -507,6 +571,7 @@ export function buildModel(options: GenerateOptions): BuildModelResult {
     prefix,
     unitByCollectionName,
     unresolved,
+    byId,
   );
 
   // `collectionDecls` drops a variable that has no value in the requested mode,

@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { generatePartials } from "./partials.js";
 import { generateGlobalsCss } from "./generate.js";
+import { rgbaToOklchCss } from "../color/oklch.js";
 import {
   basePrimitives,
   themeSemantic,
   baseTypography,
   referenceDimension,
+  figmaOnlyLayout,
   baseOptions,
   headingSmStyle,
 } from "./fixtures.js";
@@ -159,5 +161,31 @@ describe("generatePartials", () => {
     for (const decl of declared) {
       expect(combined).toContain(decl);
     }
+  });
+
+  it("inlines an alias into an ignored collection in colors.css", () => {
+    const theme = {
+      ...themeSemantic,
+      variables: [
+        ...themeSemantic.variables,
+        {
+          id: "v-surface-note",
+          name: "Surface/Note",
+          type: "COLOR" as const,
+          valuesByMode: {
+            light: { kind: "alias" as const, targetId: "v-layout-annotation" },
+            dark: { kind: "alias" as const, targetId: "v-layout-annotation" },
+          },
+        },
+      ],
+    };
+    const { files } = generatePartials({
+      ...baseOptions,
+      collections: [basePrimitives, theme, baseTypography, figmaOnlyLayout],
+    });
+    const colors = byName(files, "colors.css");
+    expect(colors).toContain(`--surface-note: ${rgbaToOklchCss({ r: 1, g: 0, b: 0, a: 1 })};`);
+    expect(colors).toContain(`--surface-note: ${rgbaToOklchCss({ r: 0, g: 0, b: 1, a: 1 })};`);
+    expect(colors).not.toContain("unresolved alias");
   });
 });

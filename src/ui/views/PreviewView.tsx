@@ -1,5 +1,6 @@
 import type { VariableDoc } from "../../shared/messages.js";
 import type { GenerateResult } from "../../core/css/generate.js";
+import { selectExportedCollections } from "../../core/css/model.js";
 
 type Props = {
   doc: VariableDoc;
@@ -8,7 +9,9 @@ type Props = {
 };
 
 export function PreviewView({ doc, output, onAdvance }: Props) {
-  const totalVars = doc.collections.reduce((n, c) => n + c.variables.length, 0);
+  const exported = selectExportedCollections(doc.collections);
+  const ignoredCount = doc.collections.length - exported.length;
+  const totalVars = exported.reduce((n, c) => n + c.variables.length, 0);
   return (
     <div className="flex flex-col gap-4 p-4">
       <section>
@@ -18,7 +21,7 @@ export function PreviewView({ doc, output, onAdvance }: Props) {
         <div className="rounded border border-[var(--color-border)]">
           <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
             <div>Collections</div>
-            <div className="font-mono">{doc.collections.length}</div>
+            <div className="font-mono">{exported.length}</div>
           </div>
           <div className="flex items-center justify-between px-3 py-2">
             <div>Variables</div>
@@ -32,7 +35,7 @@ export function PreviewView({ doc, output, onAdvance }: Props) {
           Collections
         </div>
         <div className="flex flex-col gap-1">
-          {doc.collections.map((c) => (
+          {exported.map((c) => (
             <div
               key={c.id}
               className="flex items-center justify-between rounded border border-[var(--color-border)] px-3 py-2"
@@ -46,6 +49,12 @@ export function PreviewView({ doc, output, onAdvance }: Props) {
             </div>
           ))}
         </div>
+        {ignoredCount > 0 && (
+          <div className="mt-2 text-[10px] text-[var(--color-text-secondary)]">
+            {ignoredCount} other collection{ignoredCount === 1 ? "" : "s"} ignored — only
+            Color, Theme, and Typography are exported.
+          </div>
+        )}
       </section>
 
       {output && output.errors.length > 0 && (

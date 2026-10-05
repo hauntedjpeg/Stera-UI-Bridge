@@ -1,4 +1,5 @@
 import type { UnitChoice, VariableDoc } from "../../shared/messages.js";
+import { selectExportedCollections } from "../../core/css/model.js";
 
 type Props = {
   doc: VariableDoc;
@@ -19,13 +20,15 @@ export function OptionsView({
   onDarkModeChange,
   onPrefixChange,
 }: Props) {
-  const numberCollections = doc.collections.filter((c) =>
+  // Ignored collections never reach the CSS, so a control for one would be a no-op.
+  const exported = selectExportedCollections(doc.collections);
+  const numberCollections = exported.filter((c) =>
     c.variables.some((v) => v.type === "FLOAT"),
   );
   // Only multi-mode collections are worth mapping — since light/dark moved to
   // the semantic layer, the primitive Color collection is mode-less and would
   // otherwise render a one-option dropdown.
-  const colorCollections = doc.collections.filter(
+  const colorCollections = exported.filter(
     (c) => c.modes.length > 1 && c.variables.some((v) => v.type === "COLOR"),
   );
 
